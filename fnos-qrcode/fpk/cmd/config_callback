@@ -1,0 +1,106 @@
+#!/bin/bash
+# 应用中心「设置」保存后：把新的端口 / 用户认证写入配置，并按需重启应用
+set -uo pipefail
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+PKG_DIR="$(dirname "$SELF_DIR")"
+: "${TRIM_APPDEST:=$PKG_DIR/app}"
+: "${TRIM_PKGVAR:=$PKG_DIR/var}"
+: "${TRIM_PKGETC:=$PKG_DIR/etc}"
+export TRIM_APPDEST TRIM_PKGVAR TRIM_PKGETC
+
+APP_PY="$TRIM_APPDEST/server/app.py"
+SETTINGS="$TRIM_PKGETC/settings.json"
+APP_USER="fnos-qrcode"
+APP_GROUP="fnos-qrcode"
+
+log() {
+  echo "fnos-qrcode[config] $1"
+  [ -n "${TRIM_TEMP_LOGFILE:-}" ] && echo "fnos-qrcode: $1" >>"$TRIM_TEMP_LOGFILE" 2>/dev/null
+  return 0
+}
+
+fail() {
+  echo "fnos-qrcode[config] 失败：$1" >&2
+  [ -n "${TRIM_TEMP_LOGFILE:-}" ] && echo "fnos-qrcode 设置失败：$1" >>"$TRIM_TEMP_LOGFILE" 2>/dev/null
+  exit 1
+}
+
+find_python() {
+  local candidate
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 \
+       && "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3,6) else 1)' >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  for candidate in /var/apps/python312/target/bin/python3 /var/apps/python312/target/bin/python; do
+    [ -x "$candidate" ] && { echo "$candidate"; return 0; }
+  done
+  return 1
+}
+
+mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" 2>/dev/null || true
+
+# ---------- 1. 校验 ----------
+PORT="${wizard_port:-}"
+if [ -n "$PORT" ]; then
+  PORT="$(printf '%s' "$PORT" | tr -d '[:space:]')"
+  case "$PORT" in
+    ''|*[!0-9]*) fail "服务端口必须是数字，收到：$PORT" ;;
+  esac
+  if [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then
+    fail "服务端口必须在 1024~65535 之间，收到：$PORT"
+  fi
+fi
+
+case "$(printf '%s' "${wizard_auth_enable:-}" | tr 'A-Z' 'a-z')" in
+  on|true|1|yes|enable|enabled) AUTH="on" ;;
+  off|false|0|no|disable|disabled) AUTH="off" ;;
+  *) AUTH="" ;;   # 未提供则保持原值
+esac
+
+AUTH_USER="${wizard_auth_user:-}"
+AUTH_PASS="${wizard_auth_pass:-}"
+
+if [ "$AUTH" = "on" ] && [ -n "$AUTH_PASS" ] && [ "${#AUTH_PASS}" -lt 6 ]; then
+  fail "登录密码至少需要 6 位"
+fi
+
+# ---------- 2. 写入 ----------
+PY="$(find_python)" || fail "未找到可用的 Python3（需要 3.6 及以上）"
+
+ARGS=(--set)
+[ -n "$PORT" ] && ARGS+=(--port "$PORT")
+[ -n "$AUTH" ] && ARGS+=(--auth "$AUTH")
+[ -n "$AUTH_USER" ] && ARGS+=(--user "$AUTH_USER")
+
+if [ -n "$AUTH_PASS" ]; then
+  printf '%s' "$AUTH_PASS" | "$PY" "$APP_PY" "${ARGS[@]}" --pass-stdin >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
+else
+  "$PY" "$APP_PY" "${ARGS[@]}" >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
+fi
+
+if [ -f "$SETTINGS" ]; then
+  if id "$APP_USER" >/dev/null 2>&1 \
+     && chown "$APP_USER:$APP_GROUP" "$SETTINGS" 2>/dev/null; then
+    chmod 600 "$SETTINGS" 2>/dev/null || true
+  else
+    chmod 644 "$SETTINGS" 2>/dev/null || true
+  fi
+fi
+
+# ---------- 3. 需要时重启 ----------
+# 端口与认证都是启动时读取的，改动后必须重启才生效
+if "$SELF_DIR/main" status >/dev/null 2>&1; then
+  log "检测到应用正在运行，重启以应用新配置"
+  "$SELF_DIR/main" stop >/dev/null 2>&1 || true
+  "$SELF_DIR/main" start >/dev/null 2>&1 || fail "配置已保存，但重启失败，请在应用中心手动启动"
+  log "已重启完成"
+else
+  log "应用当前未运行，配置将在下次启动时生效"
+fi
+
+log "设置已保存：端口=${PORT:-未变} 用户认证=${AUTH:-未变}"
+exit 0

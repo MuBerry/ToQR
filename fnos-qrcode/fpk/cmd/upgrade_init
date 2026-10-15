@@ -1,0 +1,12 @@
+#!/bin/bash
+# 升级前：停掉旧版本进程
+set -uo pipefail
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [ -x "$SELF_DIR/main" ]; then
+  "$SELF_DIR/main" stop || true
+fi
+
+echo "fnos-qrcode[upgrade_init] 已停止旧版本"
+exit 0

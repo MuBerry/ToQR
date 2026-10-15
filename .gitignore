@@ -2,3 +2,5 @@
 _t*.html
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc

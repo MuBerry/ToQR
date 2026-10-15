@@ -1,0 +1,99 @@
+#!/bin/bash
+# 安装完成后：准备运行目录，并把安装向导里填的「服务端口 / 用户认证」落到 settings.json
+set -uo pipefail
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+PKG_DIR="$(dirname "$SELF_DIR")"
+: "${TRIM_APPDEST:=$PKG_DIR/app}"
+: "${TRIM_PKGVAR:=$PKG_DIR/var}"
+: "${TRIM_PKGETC:=$PKG_DIR/etc}"
+: "${TRIM_PKGTMP:=$PKG_DIR/tmp}"
+export TRIM_APPDEST TRIM_PKGVAR TRIM_PKGETC TRIM_PKGTMP
+
+APP_PY="$TRIM_APPDEST/server/app.py"
+SETTINGS="$TRIM_PKGETC/settings.json"
+APP_USER="fnos-qrcode"
+APP_GROUP="fnos-qrcode"
+
+log() {
+  echo "fnos-qrcode[install] $1"
+  [ -n "${TRIM_TEMP_LOGFILE:-}" ] && echo "fnos-qrcode: $1" >>"$TRIM_TEMP_LOGFILE" 2>/dev/null
+  return 0
+}
+
+fail() {
+  echo "fnos-qrcode[install] 失败：$1" >&2
+  [ -n "${TRIM_TEMP_LOGFILE:-}" ] && echo "fnos-qrcode 安装失败：$1" >>"$TRIM_TEMP_LOGFILE" 2>/dev/null
+  exit 1
+}
+
+find_python() {
+  local candidate
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 \
+       && "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3,6) else 1)' >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+  for candidate in /var/apps/python312/target/bin/python3 /var/apps/python312/target/bin/python; do
+    [ -x "$candidate" ] && { echo "$candidate"; return 0; }
+  done
+  return 1
+}
+
+# ---------- 1. 目录 ----------
+mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" "$TRIM_PKGTMP" 2>/dev/null || fail "创建运行目录失败"
+log "运行目录就绪：$TRIM_PKGVAR"
+
+# ---------- 2. 解析并校验安装向导参数 ----------
+PORT="${wizard_port:-10001}"
+PORT="$(printf '%s' "$PORT" | tr -d '[:space:]')"
+case "$PORT" in
+  ''|*[!0-9]*) fail "服务端口必须是数字，收到：${wizard_port:-（空）}" ;;
+esac
+if [ "$PORT" -lt 1024 ] || [ "$PORT" -gt 65535 ]; then
+  fail "服务端口必须在 1024~65535 之间，收到：$PORT"
+fi
+
+case "$(printf '%s' "${wizard_auth_enable:-off}" | tr 'A-Z' 'a-z')" in
+  on|true|1|yes|enable|enabled) AUTH="on" ;;
+  *)                             AUTH="off" ;;
+esac
+
+AUTH_USER="${wizard_auth_user:-admin}"
+AUTH_PASS="${wizard_auth_pass:-}"
+
+if [ "$AUTH" = "on" ]; then
+  [ -n "$AUTH_PASS" ] || fail "已选择开启用户认证，但没有填写登录密码"
+  if [ "${#AUTH_PASS}" -lt 6 ]; then
+    fail "登录密码至少需要 6 位"
+  fi
+fi
+
+# ---------- 3. 落盘配置 ----------
+PY="$(find_python)" || fail "未找到可用的 Python3（需要 3.6 及以上）"
+
+ARGS=(--set --port "$PORT" --auth "$AUTH")
+[ -n "$AUTH_USER" ] && ARGS+=(--user "$AUTH_USER")
+
+if [ -n "$AUTH_PASS" ]; then
+  # 用管道传密码，避免出现在进程命令行里
+  printf '%s' "$AUTH_PASS" | "$PY" "$APP_PY" "${ARGS[@]}" --pass-stdin >/dev/null || fail "写入配置失败"
+else
+  "$PY" "$APP_PY" "${ARGS[@]}" >/dev/null || fail "写入配置失败"
+fi
+
+# ---------- 4. 权限 ----------
+# 生命周期脚本可能以 root 运行，而应用以 package 身份运行，需要把配置交给应用用户
+if [ -f "$SETTINGS" ]; then
+  if id "$APP_USER" >/dev/null 2>&1 \
+     && chown "$APP_USER:$APP_GROUP" "$SETTINGS" 2>/dev/null; then
+    chmod 600 "$SETTINGS" 2>/dev/null || true
+  else
+    chmod 644 "$SETTINGS" 2>/dev/null || true
+  fi
+fi
+
+log "配置完成：端口=$PORT 用户认证=$AUTH 用户名=$AUTH_USER 配置文件=$SETTINGS"
+exit 0

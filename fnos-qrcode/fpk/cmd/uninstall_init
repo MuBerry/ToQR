@@ -1,0 +1,12 @@
+#!/bin/bash
+# 卸载前：先停掉应用进程，避免卸载后残留孤儿进程
+set -uo pipefail
+
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [ -x "$SELF_DIR/main" ]; then
+  "$SELF_DIR/main" stop || true
+fi
+
+echo "fnos-qrcode[uninstall_init] 已停止应用"
+exit 0

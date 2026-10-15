@@ -1,0 +1,43 @@
+#!/bin/bash
+# 升级后：补齐运行目录、保证配置文件可解析；绝不覆盖用户已改过的端口与认证设置
+set -uo pipefail
+
+PKG_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+: "${TRIM_APPDEST:=$PKG_DIR/app}"
+: "${TRIM_PKGVAR:=$PKG_DIR/var}"
+: "${TRIM_PKGETC:=$PKG_DIR/etc}"
+export TRIM_APPDEST TRIM_PKGVAR TRIM_PKGETC
+
+APP_PY="$TRIM_APPDEST/server/app.py"
+SETTINGS="$TRIM_PKGETC/settings.json"
+
+mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" 2>/dev/null || true
+
+find_python() {
+  local candidate
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 \
+       && "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3,6) else 1)' >/dev/null 2>&1; then
+      command -v "$candidate"; return 0
+    fi
+  done
+  for candidate in /var/apps/python312/target/bin/python3 /var/apps/python312/target/bin/python; do
+    [ -x "$candidate" ] && { echo "$candidate"; return 0; }
+  done
+  return 1
+}
+
+PY="$(find_python)" || exit 0
+
+if [ -f "$SETTINGS" ]; then
+  # --print-port 会解析并规范化配置；解析失败时返回默认端口
+  "$PY" "$APP_PY" --print-port >/dev/null 2>&1 \
+    || echo "fnos-qrcode[upgrade] 警告：配置文件解析异常，应用启动时会回退到默认端口"
+  echo "fnos-qrcode[upgrade] 已保留原有配置：$SETTINGS"
+else
+  # 全新安装缺少配置（例如升级自不含配置的旧版本），补一份默认值
+  "$PY" "$APP_PY" --set --port 10001 --auth off >/dev/null 2>&1 || true
+  echo "fnos-qrcode[upgrade] 未发现配置文件，已写入默认配置（端口 10001、不开启认证）"
+fi
+
+exit 0
