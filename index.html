@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二维码批量生成器 - 简单高效的二维码生成工具</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4.5' fill='%231f2937'/%3E%3Crect x='4.2' y='4.2' width='6.2' height='6.2' rx='1' fill='%23ffffff'/%3E%3Crect x='13.6' y='4.2' width='6.2' height='6.2' rx='1' fill='%233b82f6'/%3E%3Crect x='4.2' y='13.6' width='6.2' height='6.2' rx='1' fill='%233b82f6'/%3E%3Crect x='13.6' y='13.6' width='6.2' height='6.2' rx='1' fill='%23ffffff'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg-page:#f9fafb;
+    --card-bg:#ffffff;
+    --card-border:#eef0f2;
+    --line:#f0f0f0;
+    --text-1:#1f2937;
+    --text-2:#374151;
+    --text-3:#4b5563;
+    --text-4:#6b7280;
+    --text-5:#9ca3af;
+    --text-6:#c3c8d0;
+    --input-border:#d1d5db;
+    --blue:#3b82f6;
+    --blue-dark:#2563eb;
+    --green:#10b981;
+    --green-dark:#059669;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none !important}
+  html,body{height:100%}
+  body{
+    background:var(--bg-page);
+    color:var(--text-1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    font-size:14px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* ---------------- 顶栏 ---------------- */
+  .topbar{
+    background:#fff;
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:20;
+  }
+  .topbar-inner{
+    height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;min-width:0}
+  .brand h1{
+    font-size:18px;font-weight:700;color:var(--text-1);letter-spacing:.2px;white-space:nowrap;
+  }
+  .brand-sub{font-size:13px;color:var(--text-4);white-space:nowrap}
+
+  /* ---------------- 卡片 ---------------- */
+  main{padding:24px 0 40px}
+  .card{
+    background:var(--card-bg);
+    border:1px solid var(--card-border);
+    border-radius:var(--radius);
+    box-shadow:0 1px 2px rgba(16,24,40,.03);
+  }
+  .card + .card{margin-top:20px}
+
+  .panel-head{display:flex;align-items:center;gap:8px}
+  .panel-head h2{font-size:15px;font-weight:700;color:var(--text-1)}
+  .panel-head .icon{flex:none;display:block}
+
+  /* ---------------- 使用说明 ---------------- */
+  .help{padding:20px 24px 22px}
+  .help h2{font-size:16px;font-weight:700;color:var(--text-1);margin-bottom:10px}
+  .help p{font-size:13.5px;color:var(--text-3);line-height:1.75;max-width:920px}
+  .tips{
+    list-style:none;display:flex;flex-wrap:wrap;gap:10px 28px;margin-top:12px;
+  }
+  .tips li{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-3)}
+  .tips svg{flex:none}
+
+  /* ---------------- 双栏 ---------------- */
+  .grid{display:grid;grid-template-columns:1.1fr 1.4fr;gap:20px;margin-top:20px}
+  .grid .card{margin-top:0}
+
+  .panel-input{padding:20px 22px 22px;display:flex;flex-direction:column}
+  .hint-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:8px 0 10px}
+  .hint{font-size:12.5px;color:var(--text-4)}
+  .mini-btn{
+    display:inline-flex;align-items:center;gap:4px;flex:none;
+    font-size:12px;font-family:inherit;color:var(--blue);
+    background:#eff6ff;border:1px solid #dbeafe;border-radius:5px;
+    padding:3px 8px;cursor:pointer;white-space:nowrap;
+    transition:background-color .15s,border-color .15s;
+  }
+  .mini-btn:hover{background:#dbeafe;border-color:#bfdbfe}
+  .mini-btn[aria-expanded="true"]{background:#dbeafe;border-color:#bfdbfe}
+  .mini-btn svg{flex:none}
+  .mini-btn .caret{transition:transform .15s}
+  .mini-btn[aria-expanded="true"] .caret{transform:rotate(180deg)}
+
+  /* 模板格式选择菜单 */
+  .tpl-wrap{position:relative;flex:none}
+  .tpl-menu{
+    position:absolute;right:0;top:calc(100% + 6px);z-index:30;
+    min-width:186px;padding:4px;
+    background:#fff;border:1px solid #e8ebef;border-radius:8px;
+    box-shadow:0 8px 24px rgba(16,24,40,.12);
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .tpl-menu button{
+    display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+    width:100%;text-align:left;border:none;background:none;cursor:pointer;
+    padding:7px 9px;border-radius:6px;font-family:inherit;
+    font-size:12.5px;color:var(--text-2);transition:background-color .12s,color .12s;
+  }
+  .tpl-menu button:hover{background:#f1f6ff;color:var(--blue-dark)}
+  .tpl-menu button .d{font-size:11px;color:var(--text-5)}
+  .tpl-menu button:hover .d{color:#7ba7e8}
+
+  textarea{
+    width:100%;flex:1 1 auto;min-height:230px;resize:vertical;
+    border:1px solid var(--input-border);border-radius:6px;
+    padding:10px 12px;font-size:13.5px;line-height:1.7;color:var(--text-2);
+    font-family:inherit;outline:none;background:#fff;transition:border-color .15s,box-shadow .15s;
+  }
+  textarea::placeholder{color:var(--text-5)}
+  textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  textarea.dragover{
+    border-color:var(--blue);border-style:dashed;background:#f5f9ff;
+    box-shadow:0 0 0 3px rgba(59,130,246,.12);
+  }
+
+  /* 文件导入信息条 */
+  .import-bar{
+    display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;
+    margin-top:10px;padding:7px 10px;border-radius:6px;
+    background:#f8fafc;border:1px solid #eef0f2;font-size:12.5px;color:var(--text-4);
+  }
+  .import-bar .fname{
+    display:inline-flex;align-items:center;gap:5px;color:var(--text-3);font-weight:500;
+    max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .import-bar .fname svg{flex:none}
+  .import-bar select{
+    height:26px;border:1px solid var(--input-border);border-radius:5px;background:#fff;
+    font-size:12.5px;font-family:inherit;color:var(--text-2);padding:0 4px;max-width:130px;
+    outline:none;cursor:pointer;
+  }
+  .import-bar select:focus{border-color:var(--blue)}
+  .import-bar label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+  .import-bar input[type=checkbox]{accent-color:var(--blue);cursor:pointer;margin:0}
+  .import-bar .x{
+    margin-left:auto;border:none;background:none;cursor:pointer;color:var(--text-5);
+    font-size:16px;line-height:1;padding:2px 4px;border-radius:4px;
+  }
+  .import-bar .x:hover{color:var(--text-2);background:#eef1f4}
+
+  .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .actions .btn{padding:0 11px;font-size:13px}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;
+    height:36px;padding:0 16px;border-radius:6px;border:1px solid transparent;
+    font-size:13.5px;font-family:inherit;font-weight:500;cursor:pointer;
+    transition:background-color .15s,border-color .15s,opacity .15s,transform .05s;
+    white-space:nowrap;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn svg{flex:none}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover:not(:disabled){background:var(--blue-dark)}
+  .btn-ghost{background:#fff;color:var(--text-2);border-color:var(--input-border)}
+  .btn-ghost:hover:not(:disabled){background:#f9fafb;border-color:#9ca3af}
+  .btn-success{background:var(--green);color:#fff}
+  .btn-success:hover:not(:disabled){background:var(--green-dark)}
+
+  /* ---------------- 预览 ---------------- */
+  .panel-preview{padding:20px 22px 22px;display:flex;flex-direction:column;min-height:340px}
+  .panel-preview .count{margin-left:auto;font-size:12.5px;color:var(--text-4)}
+
+  .preview-body{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 0 4px}
+  .empty{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:24px 0}
+  .empty p{font-size:13px;color:var(--text-5)}
+  .empty small{font-size:12px;color:var(--text-6)}
+
+  .qr-grid{
+    width:100%;align-self:flex-start;align-content:start;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
+    gap:12px;max-height:520px;overflow:auto;padding:2px;
+  }
+  .qr-item{
+    position:relative;border:1px solid #eceef1;border-radius:8px;background:#fff;
+    padding:10px 8px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  .qr-item:hover{border-color:#c7d2fe;box-shadow:0 2px 8px rgba(16,24,40,.07)}
+  .qr-item img{width:100%;max-width:120px;aspect-ratio:1/1;display:block;background:#fff;border-radius:4px}
+  .qr-item .txt{
+    width:100%;font-size:11.5px;color:var(--text-4);text-align:center;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .qr-item .idx{
+    position:absolute;top:6px;left:8px;font-size:10.5px;color:#b6bcc6;
+  }
+  .qr-item .dl{
+    position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;
+    background:rgba(59,130,246,.92);color:#fff;opacity:0;transition:opacity .15s;
+  }
+  .qr-item:hover .dl{opacity:1}
+  .qr-item .dl:hover{background:var(--blue-dark)}
+  .qr-item.failed img{display:none}
+  .qr-item .fail{
+    width:100%;max-width:120px;aspect-ratio:1/1;display:none;
+    align-items:center;justify-content:center;background:#fef2f2;border-radius:4px;
+    font-size:11.5px;color:#dc2626;text-align:center;padding:6px;
+  }
+  .qr-item.failed .fail{display:flex}
+
+  .preview-skeleton{font-size:13px;color:var(--text-4)}
+
+  /* ---------------- 最近生成 ---------------- */
+  .panel-history{padding:20px 22px 22px}
+  .panel-history .panel-head .clear{
+    margin-left:auto;border:none;background:none;color:var(--text-5);
+    font-size:12.5px;font-family:inherit;cursor:pointer;padding:2px 4px;
+  }
+  .panel-history .panel-head .clear:hover{color:var(--blue)}
+  .history-empty{text-align:center;font-size:13px;color:var(--text-5);padding:34px 0 26px}
+
+  .history-list{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:4px}
+  .history-list li{
+    display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:6px;
+    cursor:pointer;transition:background .12s;
+  }
+  .history-list li:hover{background:#f8fafc}
+  .history-list img{
+    width:40px;height:40px;flex:none;border:1px solid #eef0f2;border-radius:6px;background:#fff;
+  }
+  .history-main{min-width:0;flex:1}
+  .history-main .t{font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .history-main .m{font-size:12px;color:var(--text-5);margin-top:1px}
+  .history-list .go{
+    font-size:12.5px;color:var(--blue);opacity:0;flex:none;transition:opacity .12s;
+  }
+  .history-list li:hover .go{opacity:1}
+
+  footer{
+    text-align:center;font-size:12px;color:var(--text-5);padding:0 24px 32px;line-height:1.9;
+  }
+  footer a{color:var(--text-4);text-decoration:none}
+  footer a:hover{color:var(--blue)}
+
+  .toast{
+    position:fixed;left:50%;bottom:34px;transform:translate(-50%,14px);
+    background:rgba(31,41,55,.94);color:#fff;font-size:13px;
+    padding:9px 16px;border-radius:6px;opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;z-index:60;max-width:80vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:860px){
+    .grid{grid-template-columns:1fr}
+    .brand-sub{display:none}
+    .topbar-inner{height:56px}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="container topbar-inner">
+    <div class="brand">
+      <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2.5" y="2.5" width="8" height="8" rx="1.4" fill="#1f2937"/>
+        <rect x="4.8" y="4.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="13.5" y="2.5" width="8" height="8" rx="1.4" fill="#3b82f6"/>
+        <rect x="15.8" y="4.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="2.5" y="13.5" width="8" height="8" rx="1.4" fill="#3b82f6"/>
+        <rect x="4.8" y="15.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="13.5" y="13.5" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="18.1" y="13.5" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="13.5" y="18.1" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="18.1" y="18.1" width="3.4" height="3.4" rx=".6" fill="#3b82f6"/>
+      </svg>
+      <h1>二维码批量生成器</h1>
+    </div>
+    <div class="brand-sub">简单高效的二维码生成工具</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- 使用说明 -->
+  <section class="card help">
+    <h2>使用说明</h2>
+    <p>在下方文本框中输入内容，每一行一个条目，系统将为每个条目生成对应的二维码。生成后可直接预览并保存需要的二维码。</p>
+    <ul class="tips">
+      <li>
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="9" fill="#10b981"/>
+          <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        支持文本、网址等多种内容
+      </li>
+      <li>
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="9" fill="#10b981"/>
+          <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        实时预览生成结果
+      </li>
+      <li>
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="9" fill="#10b981"/>
+          <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        单个或批量下载二维码
+      </li>
+      <li>
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="10" cy="10" r="9" fill="#10b981"/>
+          <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        支持 txt / csv 文件批量导入
+      </li>
+    </ul>
+  </section>
+
+  <!-- 输入 + 预览 -->
+  <div class="grid">
+    <section class="card panel-input">
+      <div class="panel-head">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3z" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M14.5 6.5l3 3" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>
+        <h2>输入内容</h2>
+      </div>
+      <div class="hint-row">
+        <p class="hint">每行一个内容，将生成对应二维码</p>
+        <div class="tpl-wrap">
+          <button type="button" class="mini-btn" id="btnTemplate" aria-haspopup="menu" aria-expanded="false" title="下载导入模板（CSV / TXT）">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3.5v11m0 0l-3.6-3.6M12 14.5l3.6-3.6M5 17.5v1.6c0 .7.6 1.4 1.4 1.4h11.2c.8 0 1.4-.7 1.4-1.4v-1.6"
+                    stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            下载模板
+            <svg class="caret" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6 9.5l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="tpl-menu" id="tplMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-tpl="csv">
+              <span>CSV 模板</span>
+              <span class="d">含表头，可用 Excel 编辑</span>
+            </button>
+            <button type="button" role="menuitem" data-tpl="txt">
+              <span>TXT 模板</span>
+              <span class="d">纯文本，一行一条</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <textarea id="input" spellcheck="false" placeholder="每行一个内容，例如：&#10;https://example.com&#10;Python二维码生成&#10;测试内容123&#10;多行文本示例"></textarea>
+      <div class="import-bar" id="importBar" hidden>
+        <span class="fname" id="importName">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M14 3H7a1.6 1.6 0 0 0-1.6 1.6v14.8A1.6 1.6 0 0 0 7 21h10a1.6 1.6 0 0 0 1.6-1.6V7.6L14 3z"
+                  stroke="#6b7280" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M13.8 3.2v4.6h4.6" stroke="#6b7280" stroke-width="1.7" stroke-linejoin="round"/>
+          </svg>
+          <span id="importNameText"></span>
+        </span>
+        <span id="colLabel">使用列</span>
+        <select id="colSelect"></select>
+        <label id="headerWrap"><input type="checkbox" id="headerSkip">忽略首行</label>
+        <button class="x" id="importClose" type="button" title="关闭导入信息">×</button>
+      </div>
+      <input type="file" id="fileInput" accept=".txt,.text,.csv,.tsv,text/plain,text/csv" hidden>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="btnGen">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 3l13 8-5.5 1.2L9.5 18 5 3z" fill="#fff"/>
+          </svg>
+          生成二维码
+        </button>
+        <button class="btn btn-ghost" id="btnUpload">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 16.5v-11m0 0L8 9.5m4-4l4 4M4.5 16v2.1c0 .8.6 1.4 1.4 1.4h12.2c.8 0 1.4-.6 1.4-1.4V16"
+                  stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          上传文件
+        </button>
+        <button class="btn btn-ghost" id="btnClear">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 7h16M9.5 7V5.4c0-.5.4-.9.9-.9h3.2c.5 0 .9.4.9.9V7M6.6 7l.9 12.1c0 .5.4.9.9.9h7.2c.5 0 .9-.4.9-.9L17.4 7" stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          清空输入
+        </button>
+        <button class="btn btn-success" id="btnDownloadAll">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3.5v11m0 0l-4-4m4 4l4-4M4.5 17.5v1.6c0 .8.6 1.4 1.4 1.4h12.2c.8 0 1.4-.6 1.4-1.4v-1.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          下载全部
+        </button>
+      </div>
+    </section>
+
+    <section class="card panel-preview">
+      <div class="panel-head">
+        <h2>二维码预览</h2>
+        <span class="count" id="previewCount"></span>
+      </div>
+      <div class="preview-body" id="previewBody">
+        <div class="empty">
+          <svg width="66" height="66" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.3" fill="#d7dbe0"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.3" fill="#e4e7eb"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.3" fill="#e4e7eb"/>
+            <rect x="14" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>
+            <rect x="18" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>
+            <rect x="14" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>
+            <rect x="18" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>
+          </svg>
+          <p>生成的二维码将显示在这里</p>
+          <small>点击“生成二维码”按钮开始</small>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 最近生成 -->
+  <section class="card panel-history">
+    <div class="panel-head">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3.8 12a8.2 8.2 0 1 0 2.6-6" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M3.6 4.6v3.6h3.6" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 7.6V12l3 1.9" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2>最近生成</h2>
+      <button class="clear" id="btnClearHistory" hidden>清空记录</button>
+    </div>
+    <div id="historyBody">
+      <div class="history-empty">暂无生成记录</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  二维码由 <a href="https://cli.im/open-api/" target="_blank" rel="noopener">草料开放平台</a> 公开 API 实时生成 · 内容仅在本机处理，不会上传留存
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ============ 草料开放平台 · 二维码生成接口 ============ */
+  const API_BASE = 'https://api.2dcode.biz/v1/create-qr-code';
+  const QR_SIZE = 400;          // 生成尺寸（像素）
+  const MAX_ITEMS = 200;        // 单次最多生成数量
+  const HISTORY_KEY = 'qr-batch-history-v1';
+  const HISTORY_LIMIT = 8;
+
+  function buildQrUrl(text, size) {
+    return API_BASE + '?data=' + encodeURIComponent(text) + '&size=' + size + 'x' + size;
+  }
+
+  /* ============ DOM ============ */
+  const $ = (id) => document.getElementById(id);
+  const inputEl   = $('input');
+  const previewBody = $('previewBody');
+  const previewCount = $('previewCount');
+  const historyBody = $('historyBody');
+  const btnClearHistory = $('btnClearHistory');
+  const toastEl   = $('toast');
+  const fileInput = $('fileInput');
+  const importBar = $('importBar');
+  const importNameText = $('importNameText');
+  const colLabel  = $('colLabel');
+  const colSelect = $('colSelect');
+  const headerWrap = $('headerWrap');
+  const headerSkip = $('headerSkip');
+
+  let currentItems = [];   // 当前预览的条目
+  let importState = null;  // 最近一次导入的文件信息
+  let toastTimer = null;
+
+  /* ============ 工具函数 ============ */
+  function toast(msg, ms) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 2200);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function parseInput() {
+    const out = [];
+    inputEl.value.split(/\r?\n/).forEach((line) => {
+      const t = line.trim();
+      if (t) out.push(t);   // 跳过空行，重复内容按不同条目分别生成
+    });
+    return out;
+  }
+
+  function safeFileName(text, idx) {
+    let s = String(text).replace(/^https?:\/\//i, '').replace(/[\\/:*?"<>|\s]+/g, '_');
+    s = s.replace(/^_+|_+$/g, '').slice(0, 40) || 'qrcode';
+    return String(idx + 1).padStart(2, '0') + '_' + s + '.png';
+  }
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /* ============ 生成 ============ */
+  function renderPreview(items) {
+    currentItems = items;
+
+    if (!items.length) {
+      previewCount.textContent = '';
+      previewBody.innerHTML =
+        '<div class="empty">' +
+          '<svg width="66" height="66" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+            '<rect x="3" y="3" width="7" height="7" rx="1.3" fill="#d7dbe0"/>' +
+            '<rect x="14" y="3" width="7" height="7" rx="1.3" fill="#e4e7eb"/>' +
+            '<rect x="3" y="14" width="7" height="7" rx="1.3" fill="#e4e7eb"/>' +
+            '<rect x="14" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>' +
+            '<rect x="18" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>' +
+            '<rect x="14" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>' +
+            '<rect x="18" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>' +
+          '</svg>' +
+          '<p>生成的二维码将显示在这里</p>' +
+          '<small>点击“生成二维码”按钮开始</small>' +
+        '</div>';
+      return;
+    }
+
+    previewCount.textContent = '共 ' + items.length + ' 个';
+    const frag = document.createDocumentFragment();
+    const grid = document.createElement('div');
+    grid.className = 'qr-grid';
+
+    items.forEach((text, i) => {
+      const url = buildQrUrl(text, QR_SIZE);
+
+      const item = document.createElement('div');
+      item.className = 'qr-item';
+      item.innerHTML =
+        '<span class="idx">#' + (i + 1) + '</span>' +
+        '<button class="dl" title="下载这张二维码" data-i="' + i + '">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none">' +
+            '<path d="M12 4v10m0 0l-3.6-3.6M12 14l3.6-3.6M5 18.5h14" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '</svg>' +
+        '</button>' +
+        '<img alt="二维码：' + escapeHtml(text) + '" src="' + url + '">' +
+        '<div class="fail">二维码生成失败<br>请检查网络后重试</div>' +
+        '<div class="txt" title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</div>';
+
+      const img = item.querySelector('img');
+      img.addEventListener('error', () => item.classList.add('failed'));
+
+      grid.appendChild(item);
+    });
+
+    frag.appendChild(grid);
+    previewBody.innerHTML = '';
+    previewBody.appendChild(frag);
+  }
+
+  function handleGenerate() {
+    const items = parseInput();
+    if (!items.length) {
+      toast('请先在文本框中输入内容');
+      inputEl.focus();
+      return;
+    }
+    let list = items;
+    if (items.length > MAX_ITEMS) {
+      list = items.slice(0, MAX_ITEMS);
+      toast('单次最多生成 ' + MAX_ITEMS + ' 个，已截取前 ' + MAX_ITEMS + ' 条', 3200);
+    }
+    renderPreview(list);
+    saveHistory(list);
+  }
+
+  /* ============ 下载 ============ */
+  // 取回二维码图片。
+  // 注意：绝对不能用 cache:'force-cache' —— <img> 加载同一个 URL 时会在 HTTP 缓存里
+  // 留下一条 opaque 响应，force-cache 会复用它，导致 CORS 校验失败（表现为“全部下载失败”）。
+  async function fetchQrBlob(text) {
+    const url = buildQrUrl(text, QR_SIZE);
+    try {
+      const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.blob();
+    } catch (e) {
+      // 兜底：换一个 URL（追加随机参数）彻底绕开任何已缓存的 opaque 响应
+      const bust = url + '&_r=' + Date.now() + Math.random().toString(36).slice(2, 8);
+      const res = await fetch(bust, { mode: 'cors', cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.blob();
+    }
+  }
+
+  function saveBlob(blob, filename) {
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+  }
+
+  async function downloadOne(text, idx) {
+    try {
+      const blob = await fetchQrBlob(text);
+      saveBlob(blob, safeFileName(text, idx));
+    } catch (e) {
+      // 兜底：新窗口打开图片，用户可右键另存
+      window.open(buildQrUrl(text, QR_SIZE), '_blank', 'noopener');
+      throw e;
+    }
+  }
+
+  async function handleDownloadAll() {
+    const items = currentItems.length ? currentItems : parseInput();
+    if (!items.length) {
+      toast('还没有可下载的二维码，请先生成');
+      return;
+    }
+    if (currentItems.length === 0) renderPreview(items);
+
+    const btn = $('btnDownloadAll');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = '打包中…';
+
+    try {
+      const hasZip = typeof window.JSZip === 'function';
+      const zip = hasZip ? new JSZip() : null;
+      let ok = 0;
+      let firstFail = null;
+
+      for (let i = 0; i < items.length; i++) {
+        btn.textContent = '下载中 ' + (i + 1) + '/' + items.length;
+        try {
+          const blob = await fetchQrBlob(items[i]);
+          if (zip) zip.file(safeFileName(items[i], i), blob);
+          else saveBlob(blob, safeFileName(items[i], i));
+          ok++;
+        } catch (e) {
+          if (!firstFail) firstFail = items[i];
+          console.warn('第 ' + (i + 1) + ' 个二维码下载失败', e);
+        }
+      }
+
+      if (!ok) {
+        // 几乎都是运行时环境限制了跨域请求，改为新窗口打开图片供手动保存
+        if (firstFail) window.open(buildQrUrl(firstFail, QR_SIZE), '_blank', 'noopener');
+        toast('当前环境拦截了跨域下载，已在新窗口打开图片，右键另存即可', 4600);
+        return;
+      }
+
+      if (zip) {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveBlob(content, 'qrcodes_' + Date.now() + '.zip');
+        toast('已打包 ' + ok + ' 个二维码并开始下载');
+      } else {
+        toast('已下载 ' + ok + ' 个二维码文件');
+      }
+    } catch (e) {
+      toast('下载失败：' + (e && e.message ? e.message : '网络异常'), 3200);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+
+  /* ============ 最近生成记录 ============ */
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveHistoryTo(arr) {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+
+  function saveHistory(items) {
+    const arr = loadHistory();
+    arr.unshift({
+      ts: Date.now(),
+      count: items.length,
+      sample: items.slice(0, 12),
+      preview: items[0]
+    });
+    saveHistoryTo(arr.slice(0, HISTORY_LIMIT));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const arr = loadHistory();
+    btnClearHistory.hidden = arr.length === 0;
+
+    if (!arr.length) {
+      historyBody.innerHTML = '<div class="history-empty">暂无生成记录</div>';
+      return;
+    }
+
+    const ul = document.createElement('ul');
+    ul.className = 'history-list';
+
+    arr.forEach((rec, i) => {
+      const li = document.createElement('li');
+      li.dataset.i = i;
+      li.innerHTML =
+        '<img src="' + buildQrUrl(rec.preview, 120) + '" alt="">' +
+        '<div class="history-main">' +
+          '<div class="t">' + escapeHtml(rec.sample.slice(0, 3).join(' · ')) +
+            (rec.count > 3 ? ' 等 ' + rec.count + ' 项' : '') + '</div>' +
+          '<div class="m">' + formatTime(rec.ts) + ' · 共 ' + rec.count + ' 个二维码</div>' +
+        '</div>' +
+        '<span class="go">载入</span>';
+      li.addEventListener('click', () => {
+        inputEl.value = rec.sample.join('\n');
+        if (rec.count > rec.sample.length) {
+          toast('记录仅保留前 ' + rec.sample.length + ' 条，可重新编辑后生成');
+        }
+        handleGenerate();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      ul.appendChild(li);
+    });
+
+    historyBody.innerHTML = '';
+    historyBody.appendChild(ul);
+  }
+
+  /* ============ 文件批量导入（txt / csv / tsv） ============ */
+  function decodeBuffer(buf) {
+    const bytes = new Uint8Array(buf);
+    // 去掉 UTF-8 BOM
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes.subarray(3));
+    }
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (e) {
+      // Excel 导出的 CSV 常为 GBK 编码
+      try { return new TextDecoder('gbk').decode(bytes); }
+      catch (_) { return new TextDecoder('utf-8').decode(bytes); }
+    }
+  }
+
+  function detectDelimiter(line) {
+    let best = ',';
+    let max = 0;
+    [',', ';', '\t', '|'].forEach((d) => {
+      const n = line.split(d).length - 1;
+      if (n > max) { max = n; best = d; }
+    });
+    return max > 0 ? best : ',';
+  }
+
+  // 支持带引号包裹、字段内含分隔符或换行的标准 CSV
+  function parseDelimited(text, delim) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuote = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inQuote) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuote = false;
+        } else {
+          field += ch;
+        }
+      } else if (ch === '"') {
+        inQuote = true;
+      } else if (ch === delim) {
+        row.push(field); field = '';
+      } else if (ch === '\n') {
+        row.push(field); rows.push(row); row = []; field = '';
+      } else if (ch !== '\r') {
+        field += ch;
+      }
+    }
+    row.push(field);
+    rows.push(row);
+
+    return rows
+      .map((r) => r.map((c) => c.trim()))
+      .filter((r) => r.some((c) => c !== ''));
+  }
+
+  function parseTable(text, ext) {
+    if (ext === 'csv' || ext === 'tsv') {
+      const firstLine = text.split(/\r?\n/).find((l) => l.trim()) || '';
+      const delim = ext === 'tsv' ? '\t' : detectDelimiter(firstLine);
+      const rows = parseDelimited(text, delim);
+      const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
+      return { rows: rows, cols: cols || 1 };
+    }
+    const rows = text.split(/\r?\n/)
+      .map((l) => [l.trim()])
+      .filter((r) => r[0] !== '');
+    return { rows: rows, cols: 1 };
+  }
+
+  // 首行看起来像表头：短、无数字、无链接
+  function looksLikeHeader(rows) {
+    if (rows.length < 2) return false;
+    return rows[0].every((c) => c.length <= 16 && !/[0-9]/.test(c) && !/:\/\//.test(c));
+  }
+
+  function currentImportItems() {
+    if (!importState) return null;
+    const rows = importState.rows;
+    const col = importState.cols > 1 ? Number(colSelect.value) : 0;
+    const skip = (!headerWrap.hidden && headerSkip.checked) ? 1 : 0;
+    return rows.slice(skip).map((r) => (r[col] || '').trim()).filter(Boolean);
+  }
+
+  function applyImport() {
+    const items = currentImportItems();
+    if (!items) return;
+    inputEl.value = items.join('\n');
+    renderPreview([]);
+    toast(items.length ? '已导入 ' + items.length + ' 条内容' : '文件中没有可用内容');
+  }
+
+  function showImportBar(name, rows, cols, isDelimited) {
+    importState = { name: name, rows: rows, cols: cols };
+    importNameText.textContent = name;
+
+    colSelect.innerHTML = '';
+    for (let i = 0; i < cols; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      const head = (rows[0] && rows[0][i]) ? rows[0][i] : '';
+      const label = head || '第 ' + (i + 1) + ' 列';
+      opt.textContent = label.length > 12 ? label.slice(0, 12) + '…' : label;
+      colSelect.appendChild(opt);
+    }
+
+    const multi = cols > 1;
+    colLabel.hidden = !multi;
+    colSelect.hidden = !multi;
+    headerWrap.hidden = rows.length < 2;
+    // csv/tsv 即使只有一列，首行像表头也默认跳过（例如模板文件里的“内容”）
+    headerSkip.checked = looksLikeHeader(rows) && (multi || !!isDelimited);
+
+    importBar.hidden = false;
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    const name = file.name || '未命名文件';
+    const ext = (name.split('.').pop() || '').toLowerCase();
+
+    if (['txt', 'text', 'csv', 'tsv'].indexOf(ext) === -1) {
+      toast('仅支持 .txt / .csv / .tsv 文件，当前为 .' + ext, 3000);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = function () { toast('文件读取失败，请重试'); };
+    reader.onload = function () {
+      try {
+        const text = decodeBuffer(reader.result);
+        const table = parseTable(text, ext);
+
+        if (!table.rows.length) {
+          toast('文件内容为空');
+          return;
+        }
+
+        showImportBar(name, table.rows, table.cols, /^(csv|tsv)$/.test(ext));
+        applyImport();
+      } catch (e) {
+        toast('文件解析失败：' + (e && e.message ? e.message : '格式不支持'), 3000);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // 下载导入模板：一行一条内容。
+  // CSV：带「内容」表头 + UTF-8 BOM（Excel 双击打开不乱码，导入时自动跳过表头）
+  // TXT：纯文本、不带表头（txt 按行读取，首行不会被自动忽略）
+  function downloadTemplate(type) {
+    const isTxt = type === 'txt';
+    const lines = ['https://example.com', '产品编号 A-1001', '测试内容123'];
+    const body = (isTxt ? '' : '内容\r\n') + lines.join('\r\n') + '\r\n';
+
+    saveBlob(
+      new Blob(['\uFEFF' + body], {
+        type: isTxt ? 'text/plain;charset=utf-8' : 'text/csv;charset=utf-8'
+      }),
+      '二维码批量生成模板.' + (isTxt ? 'txt' : 'csv')
+    );
+    toast('已下载 ' + (isTxt ? 'TXT' : 'CSV') + ' 模板：一行一条内容');
+  }
+
+  /* ============ 事件绑定 ============ */
+  $('btnGen').addEventListener('click', handleGenerate);
+  $('btnDownloadAll').addEventListener('click', handleDownloadAll);
+
+  $('btnClear').addEventListener('click', () => {
+    inputEl.value = '';
+    importState = null;
+    importBar.hidden = true;
+    renderPreview([]);
+    inputEl.focus();
+  });
+
+  // 上传文件
+  $('btnUpload').addEventListener('click', () => fileInput.click());
+
+  // 下载模板：按钮展开格式菜单（CSV / TXT）
+  const tplMenu = $('tplMenu');
+  const btnTemplate = $('btnTemplate');
+
+  function closeTplMenu() {
+    tplMenu.hidden = true;
+    btnTemplate.setAttribute('aria-expanded', 'false');
+  }
+
+  btnTemplate.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = tplMenu.hidden;
+    tplMenu.hidden = !open;
+    btnTemplate.setAttribute('aria-expanded', String(open));
+  });
+
+  tplMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-tpl]');
+    if (!item) return;
+    downloadTemplate(item.dataset.tpl);
+    closeTplMenu();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!tplMenu.hidden && !e.target.closest('.tpl-wrap')) closeTplMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !tplMenu.hidden) closeTplMenu();
+  });
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (f) handleFile(f);
+    fileInput.value = '';   // 允许重复选择同一个文件
+  });
+
+  // 导入信息条上的列 / 表头切换
+  colSelect.addEventListener('change', applyImport);
+  headerSkip.addEventListener('change', applyImport);
+  $('importClose').addEventListener('click', () => {
+    importBar.hidden = true;
+    importState = null;
+  });
+
+  // 拖拽文件到文本框直接导入
+  const dropTarget = inputEl.closest('.panel-input') || inputEl;
+  ['dragenter', 'dragover'].forEach((ev) => {
+    dropTarget.addEventListener(ev, (e) => {
+      const dt = e.dataTransfer;
+      if (dt && Array.prototype.indexOf.call(dt.types || [], 'Files') !== -1) {
+        e.preventDefault();
+        dt.dropEffect = 'copy';
+        inputEl.classList.add('dragover');
+      }
+    });
+  });
+  ['dragleave', 'dragend'].forEach((ev) => {
+    dropTarget.addEventListener(ev, (e) => {
+      if (!dropTarget.contains(e.relatedTarget)) inputEl.classList.remove('dragover');
+    });
+  });
+  dropTarget.addEventListener('drop', (e) => {
+    e.preventDefault();
+    inputEl.classList.remove('dragover');
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files.length) handleFile(dt.files[0]);
+  });
+
+  btnClearHistory.addEventListener('click', () => {
+    saveHistoryTo([]);
+    renderHistory();
+    toast('已清空生成记录');
+  });
+
+  // 预览区内单张下载
+  previewBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dl');
+    if (!btn) return;
+    const i = Number(btn.dataset.i);
+    const text = currentItems[i];
+    if (text == null) return;
+    downloadOne(text, i).catch(() => toast('下载失败，已尝试在新窗口打开'));
+  });
+
+  // Ctrl/Cmd + Enter 快捷生成
+  inputEl.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleGenerate();
+    }
+  });
+
+  /* ============ 初始化 ============ */
+  renderHistory();
+  renderPreview([]);
+})();
+</script>
+</body>
+</html>
