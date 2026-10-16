@@ -124,14 +124,14 @@ FPK 工程共 21 个源文件，按职责归类：
 
 | # | 文件 | 行数 | 大小 | 职责 |
 | --- | --- | --- | --- | --- |
-| 1 | `manifest` | 15 | 2104 B | 应用清单：appname/版本/入口/端口/平台 |
+| 1 | `manifest` | 15 | 2525 B | 应用清单：appname/版本/入口/端口/平台 |
 | 2 | `app/ui/config` | 16 | 321 B | 桌面入口 JSON，端口写 `${wizard_port}` |
 | 3 | `config/privilege` | 7 | 107 B | 运行身份：`run-as: package` |
 | 4 | `config/resource` | 5 | 43 B | 资源声明（数据共享为空） |
 | 5 | `wizard/install` | 71 | 2205 B | 安装向导：端口 + 认证三项 |
 | 6 | `wizard/config` | 71 | 2060 B | 设置向导（装后调整，同名字段） |
 | 7 | `wizard/uninstall` | 24 | 733 B | 卸载向导：保留 / 删除配置 |
-| 8 | `app/server/app.py` | 611 | 23735 B | 服务端：静态托管 + 端口配置 + 可选认证 |
+| 8 | `app/server/app.py` | 677 | 26447 B | 服务端：静态托管 + 端口配置 + 可选认证 |
 | 9 | `cmd/main` | 183 | 4816 B | start / stop / status 入口 |
 | 10 | `cmd/install_init` | 46 | 1601 B | 安装前：Python、端口、密码校验 |
 | 11 | `cmd/install_callback` | 147 | 5110 B | 安装后：落盘配置 + 修权限 |
@@ -163,10 +163,10 @@ FPK 工程共 21 个源文件，按职责归类：
 
 ```ini
 appname               = fnos-qrcode
-version               = 1.0.1
+version               = 1.0.2
 display_name          = 二维码批量生成器
 desc                  = 简单高效的二维码批量生成工具。在页面里每行输入一个内容，即可一次性生成对应的二维码，支持文本与网址。<br /><strong>主要能力</strong><br />· 批量生成：一行一条，一次最多 200 个<br />· 多条导入：支持 <code>.txt</code> / <code>.csv</code> / <code>.tsv</code>，也可直接把文件拖到输入框<br />· 实时预览：生成后网格预览，可单张下载或一键打包成 zip<br />· 最近记录：本地保存最近几次生成，点击即可重新载入<br /><strong>关于端口与认证</strong><br />· 服务端口安装时填写，默认 <code>10001</code>，装好后可在应用中心「设置」里修改<br />· 用户认证可选：开启后访问本应用需先登录，安装时和装好后都能调整<br /><strong>数据说明</strong><br />二维码由草料开放平台公开接口实时生成，输入内容只在你自己的浏览器里处理，不会写盘、不会上传。
-changelog              = 1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
+changelog              = 1.0.2：修复登录限流。① 锁定倒计时现在按秒实时递减，归零后自动恢复登录按钮（此前是服务端渲染一次的静态数字，看着一直不动）。② 修复「等一会儿刷新再登录仍显示 56 秒」：锁定期内的重复提交不再延长锁定窗口，锁定到期后失败计数清零。③ 同一 IP 连续失败 5 次后的锁定时间由 60 秒延长为 120 秒。<br />1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
 platform              = all
 source                = thirdparty
 maintainer            = Firlsy
@@ -471,7 +471,6 @@ HTTP 路由：
 | GET | `/favicon.ico` | 映射到 `images/icon_64.png` |
 
 ```python
-
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """二维码批量生成器 · 飞牛 fnOS 版服务端
@@ -514,14 +513,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote_plus
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.0.0'
+APPVERSION = '1.0.2'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
 SESSION_TTL = 7 * 24 * 3600          # 7 天
 PBKDF2_ITERATIONS = 200_000
 LOGIN_MAX_FAIL = 5
-LOGIN_LOCK_SECONDS = 60
+LOGIN_LOCK_SECONDS = 120
 
 HERE = os.path.dirname(os.path.abspath(__file__))     # <app>/server
 APP_DIR = os.path.dirname(HERE)                       # <app>
@@ -709,6 +708,10 @@ LOGIN_PAGE = """<!DOCTYPE html>
   button:hover{background:#2563eb}
   .err{margin-top:14px;padding:9px 11px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;
        color:#dc2626;font-size:12.5px;line-height:1.6}
+  .err.lock{background:#fffbeb;border-color:#fde68a;color:#b45309}
+  .err.lock b{font-weight:600;font-variant-numeric:tabular-nums}
+  button:disabled{cursor:not-allowed;opacity:.6}
+  button:disabled:hover{background:#3b82f6}
   .foot{margin-top:18px;text-align:center;font-size:11.5px;color:#c3c8d0}
 </style></head>
 <body>
@@ -742,6 +745,36 @@ LOGIN_PAGE = """<!DOCTYPE html>
     <p class="foot">fnOS 应用 · fnos-qrcode</p>
   </form>
 </body></html>
+"""
+
+# 锁定提示：占位符 __SEC__ 会被替换成剩余秒数。
+# 页面内脚本按秒递减显示，归零后隐藏提示并恢复登录按钮，服务端无需再次渲染。
+LOGIN_LOCK_NOTICE = """
+    <div class="err lock" id="lock-box">登录失败次数过多，请 <b id="lock-cd" data-sec="__SEC__">__SEC__</b> 秒后重试</div>
+    <script>
+    (function () {
+      var box = document.getElementById('lock-box');
+      if (!box) { return; }
+      var cd = document.getElementById('lock-cd');
+      var btn = document.querySelector('button[type="submit"]');
+      var sec = parseInt(cd.getAttribute('data-sec'), 10) || 0;
+      function paint() {
+        if (!btn) { return; }
+        btn.disabled = sec > 0;
+        btn.style.cursor = sec > 0 ? 'not-allowed' : '';
+      }
+      document.addEventListener('submit', function (e) {
+        if (sec > 0) { e.preventDefault(); }
+      }, true);
+      paint();
+      (function tick() {
+        if (sec <= 0) { box.style.display = 'none'; paint(); return; }
+        cd.textContent = sec;
+        sec -= 1;
+        window.setTimeout(tick, 1000);
+      })();
+    })();
+    </script>
 """
 
 LOGOUT_BUTTON = (
@@ -821,8 +854,9 @@ class Handler(BaseHTTPRequestHandler):
             if self._current_user():
                 self._redirect('/')
                 return
-            self._send(HTTPStatus.OK, LOGIN_PAGE.replace('__ERROR__', ''), 'text/html; charset=utf-8',
-                       {'Cache-Control': 'no-store'})
+            locked = self.server.login_guard.blocked(self.client_address[0])
+            block = LOGIN_LOCK_NOTICE.replace('__SEC__', str(locked)) if locked > 0 else ''
+            self._render_login(block, HTTPStatus.OK)
             return
 
         # 以下全部需要（可选的）登录态
@@ -851,9 +885,10 @@ class Handler(BaseHTTPRequestHandler):
                 form[unquote_plus(key)] = unquote_plus(value)
 
         ip = self.client_address[0]
-        locked = self.server.login_guard.blocked(ip)
+        guard = self.server.login_guard
+        locked = guard.blocked(ip)
         if locked > 0:
-            self._fail('%d 秒后重试（登录失败次数过多）' % locked)
+            self._fail_locked(locked)
             return
 
         auth = self.server.settings['auth']
@@ -862,20 +897,30 @@ class Handler(BaseHTTPRequestHandler):
         ok = (hmac.compare_digest(username, auth['username'])
               and verify_password(password, auth['password']))
         if not ok:
-            self.server.login_guard.fail(ip)
-            remain = LOGIN_MAX_FAIL - self.server.login_guard.count(ip)
-            extra = '，还可尝试 %d 次' % remain if remain > 0 else '，已暂时锁定'
-            self._fail('用户名或密码不正确' + extra)
+            guard.fail(ip)
+            locked = guard.blocked(ip)
+            if locked > 0:
+                self._fail_locked(locked)
+            else:
+                remain = max(0, LOGIN_MAX_FAIL - guard.count(ip))
+                self._fail('用户名或密码不正确，还可尝试 %d 次' % remain)
             return
 
-        self.server.login_guard.reset(ip)
+        guard.reset(ip)
         token = make_session(self.server.secret, auth['username'])
         self._redirect('/', {'Set-Cookie': '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax'
                                           % (SESSION_COOKIE, token, SESSION_TTL)})
 
+    def _render_login(self, block, status):
+        page = LOGIN_PAGE.replace('__ERROR__', block)
+        self._send(status, page, 'text/html; charset=utf-8', {'Cache-Control': 'no-store'})
+
     def _fail(self, message):
-        page = LOGIN_PAGE.replace('__ERROR__', '<div class="err">%s</div>' % message)
-        self._send(HTTPStatus.UNAUTHORIZED, page, 'text/html; charset=utf-8', {'Cache-Control': 'no-store'})
+        self._render_login('<div class="err">%s</div>' % message, HTTPStatus.UNAUTHORIZED)
+
+    def _fail_locked(self, seconds):
+        self._render_login(LOGIN_LOCK_NOTICE.replace('__SEC__', str(seconds)),
+                           HTTPStatus.TOO_MANY_REQUESTS)
 
     def _path(self):
         return unquote_plus(self.path.split('?', 1)[0])
@@ -918,28 +963,48 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class LoginGuard(object):
-    """极简登录失败限流（进程内）"""
+    """极简登录失败限流（进程内）
+
+    规则：同一 IP 连续失败 LOGIN_MAX_FAIL 次后，锁定 LOGIN_LOCK_SECONDS 秒。
+    - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口（否则等待再试就永远是「重新开始倒数」）；
+    - 锁定到期后失败计数清零，重新给满额机会。
+    """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._state = {}
 
-    def blocked(self, ip):
+    def info(self, ip):
+        """返回 (剩余锁定秒数, 已累计失败次数)；锁定已过期时顺带清零。"""
         with self._lock:
             count, until = self._state.get(ip, (0, 0))
-            remain = int(until - time.time())
-            return remain if remain > 0 else 0
+            now = time.time()
+            if until and now >= until:
+                self._state.pop(ip, None)
+                return 0, 0
+            remain = int(until - now + 0.5) if until else 0
+            return (remain if remain > 0 else 0), count
+
+    def blocked(self, ip):
+        return self.info(ip)[0]
 
     def count(self, ip):
-        with self._lock:
-            return self._state.get(ip, (0, 0))[0]
+        return self.info(ip)[1]
 
     def fail(self, ip):
         with self._lock:
-            count, _ = self._state.get(ip, (0, 0))
+            count, until = self._state.get(ip, (0, 0))
+            now = time.time()
+            if until and now < until:
+                # 已在锁定期：只累加计数，保持原锁定窗口
+                self._state[ip] = (count + 1, until)
+                return
             count += 1
-            until = time.time() + LOGIN_LOCK_SECONDS if count >= LOGIN_MAX_FAIL else 0
+            until = now + LOGIN_LOCK_SECONDS if count >= LOGIN_MAX_FAIL else 0
             self._state[ip] = (count, until)
+            if len(self._state) > 512:          # 轻量清理，避免长期累积
+                for key in [k for k, v in self._state.items() if v[1] and now >= v[1]]:
+                    self._state.pop(key, None)
 
     def reset(self, ip):
         with self._lock:
@@ -2359,9 +2424,9 @@ fnos-qrcode.fpk                    ← gzip 压缩的 tar
 
 | 属性 | 值 |
 | --- | --- |
-| 大小 | `78010` B |
-| MD5 | `d0e65a36ca15d876e5f9da355c9ecfdd` |
-| SHA-256 | `82ee784d2ee987f35a695f17f0c2b91b248768b4abae2aa36bc7ea91bb1ec452` |
+| 大小 | `79375` B |
+| MD5 | `f60bb5193bf12de0949a2d4179945af3` |
+| SHA-256 | `7db81d96a0ef5f0e1fb7d4c74d57bf7eba9c8ddc5058c8139dcc7ad8be1daa49` |
 
 ### 校验脚本
 
@@ -2454,6 +2519,20 @@ sudo appcenter-cli start fnos-qrcode
 | 再点「启用」 | `code 0`，服务监听 `0.0.0.0:12991`，`GET /` 返回 200 |
 | `checkport = false` 时 manifest 固定 10001 + 10001 被占 | 启用 `code 0`（不再误报） |
 
+**v1.0.2 针对「登录限流」两处毛病的回归验证**（本机 Chrome 无头浏览器跑真实页面，
+再在测试飞牛机的系统 `python3.11` 上跑一遍同样的 HTTP 序列）：
+
+| 步骤 | 期望 | 结果 |
+| --- | --- | --- |
+| 连续失败 4 次 | 不锁定，逐次提示剩余次数 | ✅ `401`，「还可尝试 4 / 3 / 2 / 1 次」 |
+| 第 5 次失败 | 立即锁定 120 秒 | ✅ `429`，锁定提示出现，`data-sec="120"` |
+| 锁定页停留 3 秒 | 秒数按秒递减 | ✅ 120 → 117，登录按钮置灰禁用 |
+| 锁定期内再提交 | 不延长窗口、页面不跳转 | ✅ 前端拦截；剩余秒数继续减少，未回到 120 |
+| 刷新 `GET /login` | 延续同一窗口的剩余时间 | ✅ 仍为 117 秒（服务端重新算出，非固定值） |
+| 锁定到期后刷新 | 提示自动消失、按钮恢复 | ✅ 倒计时归零 → 提示隐藏、按钮可点 |
+| 到期后再失败一次 | 计数清零、重新给满额机会 | ✅ 「还可尝试 4 次」 |
+| 正确密码 | 登录成功并清零 | ✅ `302` + 下发 `qr_session`；`blocked() == 0` |
+
 ---
 
 ## 8. 实现要点与踩坑记录
@@ -2482,7 +2561,8 @@ sudo appcenter-cli start fnos-qrcode
 - 登录成功下发 HMAC-SHA256 签名 Cookie（`qr_session`，7 天有效）
 - 会话密钥由**密码哈希派生**，不额外落盘 —— 这样服务进程完全不需要写配置目录，
   避开「安装脚本以 root 运行、应用以 package 运行」的权限不一致问题；副作用是改密码会让已登录会话失效（符合预期）
-- 登录失败限流：同一 IP 失败 5 次锁定 60 秒
+- 登录失败限流：同一 IP 连续失败 5 次锁定 **120 秒**（v1.0.2 起，原为 60 秒）；
+  锁定提示里的秒数由页面内联脚本按秒递减，归零后自动隐藏提示并恢复登录按钮
 - 生命周期脚本用 `--pass-stdin` 通过管道传密码，避免密码出现在 `ps` 命令行里
 
 ### 8.3 踩坑记录（都已修复）
@@ -2556,6 +2636,36 @@ sudo appcenter-cli start fnos-qrcode
 7. **不要绕过应用中心启停服务**
    直接用 `cmd/main start` 会让应用中心状态与实际不同步（应用中心认为已停用，
    桌面图标随之隐藏）。测试时请通过应用中心「启用 / 停用」操作。
+
+8. **登录锁定：倒计时不动 + 等待后仍是同一秒**（v1.0.2 修复）
+
+   **现象**（用户反馈，附截图）：连续输错密码后提示「56 秒后重试（登录失败次数过多）」，
+   等一段时间刷新再登录，仍显示「56 秒」——像是秒数被钉住了。
+
+   **根因有两层**，正好一条对应一个现象：
+
+   | 现象 | 根因 |
+   | --- | --- |
+   | 秒数不动 | `GET /login` 不渲染锁定提示，只有 `POST` 失败时才由 `_fail()` 渲染一次；页面里没有任何脚本，那个数字就是**服务端渲染时刻的快照** |
+   | 刷新后仍是同一秒 | 旧 `fail()` 每命中一次就执行 `until = time.time() + LOGIN_LOCK_SECONDS`，**把整轮锁定重新推后**；用户每次「等一会儿再试」都在重置自己的等待 |
+
+   第二层尤其阴险：从用户视角看是「倒计时永远卡住」，实际是每次尝试都在给它续命。
+
+   **修复**（v1.0.2）：
+
+   - `LoginGuard.fail()` 只在**首次越界**（`count` 刚好从 4 变 5）时设置 `until`；
+     锁定期内再次 `fail()` 只累加计数、保持原窗口，语义变成「从第 5 次失败起算 120 秒后放行」
+   - `LoginGuard.info(ip)` 统一返回 `(剩余秒数, 失败次数)`，锁定到期时顺手把计数清零，
+     所以「等满 120 秒」之后是真的恢复满额机会，而不是下一次错误立刻又锁
+   - `GET /login` 也检查 `blocked()`，刷新页面能看到**同一窗口**的剩余秒数
+   - 新增 `LOGIN_LOCK_NOTICE` 模板：把一个 `data-sec` 交给页面内联脚本按秒递减，
+     归零后自动隐藏提示、恢复登录按钮；锁定期间拦截 `submit` 事件（禁用按钮不够，
+     回车提交在部分浏览器仍会发请求）
+   - 锁定时间 `LOGIN_LOCK_SECONDS` 按需求由 60 秒改为 **120 秒**
+
+   客户端倒计时只负责「好看」，真实判定始终在服务端：`do_POST` 每次都会先查
+   `blocked()`，即使脚本被绕过也照样拒绝。锁定状态存在进程内存里（重启即清空），
+   这是为了不写盘、不依赖运行用户对配置目录的写权限。
 
 ### 8.4 前端相关（`index.html`）
 

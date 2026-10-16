@@ -40,14 +40,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote_plus
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.0.0'
+APPVERSION = '1.0.2'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
 SESSION_TTL = 7 * 24 * 3600          # 7 天
 PBKDF2_ITERATIONS = 200_000
 LOGIN_MAX_FAIL = 5
-LOGIN_LOCK_SECONDS = 60
+LOGIN_LOCK_SECONDS = 120
 
 HERE = os.path.dirname(os.path.abspath(__file__))     # <app>/server
 APP_DIR = os.path.dirname(HERE)                       # <app>
@@ -235,6 +235,10 @@ LOGIN_PAGE = """<!DOCTYPE html>
   button:hover{background:#2563eb}
   .err{margin-top:14px;padding:9px 11px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;
        color:#dc2626;font-size:12.5px;line-height:1.6}
+  .err.lock{background:#fffbeb;border-color:#fde68a;color:#b45309}
+  .err.lock b{font-weight:600;font-variant-numeric:tabular-nums}
+  button:disabled{cursor:not-allowed;opacity:.6}
+  button:disabled:hover{background:#3b82f6}
   .foot{margin-top:18px;text-align:center;font-size:11.5px;color:#c3c8d0}
 </style></head>
 <body>
@@ -268,6 +272,36 @@ LOGIN_PAGE = """<!DOCTYPE html>
     <p class="foot">fnOS 应用 · fnos-qrcode</p>
   </form>
 </body></html>
+"""
+
+# 锁定提示：占位符 __SEC__ 会被替换成剩余秒数。
+# 页面内脚本按秒递减显示，归零后隐藏提示并恢复登录按钮，服务端无需再次渲染。
+LOGIN_LOCK_NOTICE = """
+    <div class="err lock" id="lock-box">登录失败次数过多，请 <b id="lock-cd" data-sec="__SEC__">__SEC__</b> 秒后重试</div>
+    <script>
+    (function () {
+      var box = document.getElementById('lock-box');
+      if (!box) { return; }
+      var cd = document.getElementById('lock-cd');
+      var btn = document.querySelector('button[type="submit"]');
+      var sec = parseInt(cd.getAttribute('data-sec'), 10) || 0;
+      function paint() {
+        if (!btn) { return; }
+        btn.disabled = sec > 0;
+        btn.style.cursor = sec > 0 ? 'not-allowed' : '';
+      }
+      document.addEventListener('submit', function (e) {
+        if (sec > 0) { e.preventDefault(); }
+      }, true);
+      paint();
+      (function tick() {
+        if (sec <= 0) { box.style.display = 'none'; paint(); return; }
+        cd.textContent = sec;
+        sec -= 1;
+        window.setTimeout(tick, 1000);
+      })();
+    })();
+    </script>
 """
 
 LOGOUT_BUTTON = (
@@ -347,8 +381,9 @@ class Handler(BaseHTTPRequestHandler):
             if self._current_user():
                 self._redirect('/')
                 return
-            self._send(HTTPStatus.OK, LOGIN_PAGE.replace('__ERROR__', ''), 'text/html; charset=utf-8',
-                       {'Cache-Control': 'no-store'})
+            locked = self.server.login_guard.blocked(self.client_address[0])
+            block = LOGIN_LOCK_NOTICE.replace('__SEC__', str(locked)) if locked > 0 else ''
+            self._render_login(block, HTTPStatus.OK)
             return
 
         # 以下全部需要（可选的）登录态
@@ -377,9 +412,10 @@ class Handler(BaseHTTPRequestHandler):
                 form[unquote_plus(key)] = unquote_plus(value)
 
         ip = self.client_address[0]
-        locked = self.server.login_guard.blocked(ip)
+        guard = self.server.login_guard
+        locked = guard.blocked(ip)
         if locked > 0:
-            self._fail('%d 秒后重试（登录失败次数过多）' % locked)
+            self._fail_locked(locked)
             return
 
         auth = self.server.settings['auth']
@@ -388,20 +424,30 @@ class Handler(BaseHTTPRequestHandler):
         ok = (hmac.compare_digest(username, auth['username'])
               and verify_password(password, auth['password']))
         if not ok:
-            self.server.login_guard.fail(ip)
-            remain = LOGIN_MAX_FAIL - self.server.login_guard.count(ip)
-            extra = '，还可尝试 %d 次' % remain if remain > 0 else '，已暂时锁定'
-            self._fail('用户名或密码不正确' + extra)
+            guard.fail(ip)
+            locked = guard.blocked(ip)
+            if locked > 0:
+                self._fail_locked(locked)
+            else:
+                remain = max(0, LOGIN_MAX_FAIL - guard.count(ip))
+                self._fail('用户名或密码不正确，还可尝试 %d 次' % remain)
             return
 
-        self.server.login_guard.reset(ip)
+        guard.reset(ip)
         token = make_session(self.server.secret, auth['username'])
         self._redirect('/', {'Set-Cookie': '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax'
                                           % (SESSION_COOKIE, token, SESSION_TTL)})
 
+    def _render_login(self, block, status):
+        page = LOGIN_PAGE.replace('__ERROR__', block)
+        self._send(status, page, 'text/html; charset=utf-8', {'Cache-Control': 'no-store'})
+
     def _fail(self, message):
-        page = LOGIN_PAGE.replace('__ERROR__', '<div class="err">%s</div>' % message)
-        self._send(HTTPStatus.UNAUTHORIZED, page, 'text/html; charset=utf-8', {'Cache-Control': 'no-store'})
+        self._render_login('<div class="err">%s</div>' % message, HTTPStatus.UNAUTHORIZED)
+
+    def _fail_locked(self, seconds):
+        self._render_login(LOGIN_LOCK_NOTICE.replace('__SEC__', str(seconds)),
+                           HTTPStatus.TOO_MANY_REQUESTS)
 
     def _path(self):
         return unquote_plus(self.path.split('?', 1)[0])
@@ -444,28 +490,48 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class LoginGuard(object):
-    """极简登录失败限流（进程内）"""
+    """极简登录失败限流（进程内）
+
+    规则：同一 IP 连续失败 LOGIN_MAX_FAIL 次后，锁定 LOGIN_LOCK_SECONDS 秒。
+    - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口（否则等待再试就永远是「重新开始倒数」）；
+    - 锁定到期后失败计数清零，重新给满额机会。
+    """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._state = {}
 
-    def blocked(self, ip):
+    def info(self, ip):
+        """返回 (剩余锁定秒数, 已累计失败次数)；锁定已过期时顺带清零。"""
         with self._lock:
             count, until = self._state.get(ip, (0, 0))
-            remain = int(until - time.time())
-            return remain if remain > 0 else 0
+            now = time.time()
+            if until and now >= until:
+                self._state.pop(ip, None)
+                return 0, 0
+            remain = int(until - now + 0.5) if until else 0
+            return (remain if remain > 0 else 0), count
+
+    def blocked(self, ip):
+        return self.info(ip)[0]
 
     def count(self, ip):
-        with self._lock:
-            return self._state.get(ip, (0, 0))[0]
+        return self.info(ip)[1]
 
     def fail(self, ip):
         with self._lock:
-            count, _ = self._state.get(ip, (0, 0))
+            count, until = self._state.get(ip, (0, 0))
+            now = time.time()
+            if until and now < until:
+                # 已在锁定期：只累加计数，保持原锁定窗口
+                self._state[ip] = (count + 1, until)
+                return
             count += 1
-            until = time.time() + LOGIN_LOCK_SECONDS if count >= LOGIN_MAX_FAIL else 0
+            until = now + LOGIN_LOCK_SECONDS if count >= LOGIN_MAX_FAIL else 0
             self._state[ip] = (count, until)
+            if len(self._state) > 512:          # 轻量清理，避免长期累积
+                for key in [k for k, v in self._state.items() if v[1] and now >= v[1]]:
+                    self._state.pop(key, None)
 
     def reset(self, ip):
         with self._lock:
