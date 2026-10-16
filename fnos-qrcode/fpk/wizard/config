@@ -67,5 +67,110 @@
         ]
       }
     ]
+  },
+  {
+    "stepTitle": "登录安全（可选）",
+    "items": [
+      {
+        "type": "text",
+        "field": "wizard_max_fail",
+        "label": "连续失败次数",
+        "helpText": "同一 IP 在锁定时长内连续登录失败达到该次数，即锁定该 IP。取值 1~999。留空表示保持当前设置不变。",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^$|^[0-9]{1,3}$",
+            "message": "请填写 1~999 的整数，或留空保持不变"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_lock_seconds",
+        "label": "锁定时长（秒）",
+        "helpText": "被锁定后需要等待多少秒才能再次尝试登录。取值 5~86400（最长 24 小时）。留空表示保持当前设置不变。",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^$|^[0-9]{1,5}$",
+            "message": "请填写 5~86400 的整数，或留空保持不变"
+          }
+        ]
+      },
+      {
+        "type": "select",
+        "field": "wizard_device_limit",
+        "label": "限制每个账号的在线设备数",
+        "helpText": "开启后每个账号最多只能有指定数量的设备同时登录，达到上限时新的登录会被拒绝（可在应用内「设置」页踢掉旧设备释放名额）。",
+        "initValue": "keep",
+        "options": [
+          {
+            "label": "保持不变",
+            "value": "keep"
+          },
+          {
+            "label": "开启",
+            "value": "on"
+          },
+          {
+            "label": "关闭（不限设备数）",
+            "value": "off"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_max_devices",
+        "label": "新账号默认设备上限",
+        "helpText": "新增账号时默认沿用的设备数上限。取值 1~999，留空表示保持不变；单个账号的实际上限可在应用内「设置」页单独调整。",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^$|^[0-9]{1,3}$",
+            "message": "请填写 1~999 的整数，或留空保持不变"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stepTitle": "IP 名单（可选）",
+    "items": [
+      {
+        "type": "select",
+        "field": "wizard_ip_filter",
+        "label": "启用登录 IP 黑白名单",
+        "helpText": "只作用于「提交登录」这一步，浏览页面不受影响；回环地址（本机）始终放行，避免把自己关在外面。",
+        "initValue": "keep",
+        "options": [
+          {
+            "label": "保持不变",
+            "value": "keep"
+          },
+          {
+            "label": "开启",
+            "value": "on"
+          },
+          {
+            "label": "关闭",
+            "value": "off"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_ip_blacklist",
+        "label": "IP 黑名单",
+        "helpText": "命中即拒绝登录。支持单个 IP 与网段（如 192.168.1.50、10.0.0.0/8），多个用逗号分隔。留空表示保持不变；填一个空格可清空。",
+        "initValue": ""
+      },
+      {
+        "type": "text",
+        "field": "wizard_ip_whitelist",
+        "label": "IP 白名单",
+        "helpText": "填写后只有名单内的来源可以提交登录（回环除外）；黑名单优先级更高。留空表示保持不变；填一个空格可清空。",
+        "initValue": ""
+      }
+    ]
   }
 ]

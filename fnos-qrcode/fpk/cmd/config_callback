@@ -112,6 +112,42 @@ if [ "$AUTH" = "on" ] && [ -n "$AUTH_PASS" ] && [ "${#AUTH_PASS}" -lt 6 ]; then
   fail "登录密码至少需要 6 位"
 fi
 
+# ---------- 1.5 登录安全与 IP 名单（留空 / keep 表示保持原值） ----------
+SEC_ARGS=()
+
+num_arg() {   # $1=值 $2=最小 $3=最大 $4=参数名 $5=中文名
+  local v
+  v="$(printf '%s' "$1" | tr -d '[:space:]')"
+  [ -z "$v" ] && return 0
+  case "$v" in
+    *[!0-9]*) fail "$5 必须是数字，收到：$1" ;;
+  esac
+  if [ "$v" -lt "$2" ] || [ "$v" -gt "$3" ]; then
+    fail "$5 必须在 $2~$3 之间，收到：$1"
+  fi
+  SEC_ARGS+=("$4" "$v")
+}
+
+onoff() {     # $1=值 $2=参数名
+  case "$(printf '%s' "$1" | tr 'A-Z' 'a-z')" in
+    on|true|1|yes|enable|enabled) SEC_ARGS+=("$2" "on") ;;
+    off|false|0|no|disable|disabled) SEC_ARGS+=("$2" "off") ;;
+    *) return 0 ;;
+  esac
+}
+
+num_arg "${wizard_max_fail:-}"     1 999   --max-fail     "连续失败次数"
+num_arg "${wizard_lock_seconds:-}" 5 86400 --lock-seconds "锁定时长"
+num_arg "${wizard_max_devices:-}"  1 999   --max-devices  "设备数上限"
+onoff   "${wizard_device_limit:-}" --device-limit
+onoff   "${wizard_ip_filter:-}"    --ip-filter
+
+[ -n "${wizard_ip_blacklist:-}" ] && SEC_ARGS+=(--ip-blacklist "$wizard_ip_blacklist")
+[ -n "${wizard_ip_whitelist:-}" ] && SEC_ARGS+=(--ip-whitelist "$wizard_ip_whitelist")
+
+# bash 3/4 兼容：空数组在 set -u 下直接展开会报错，统一用这个写法
+EXTRA=(${SEC_ARGS[@]+"${SEC_ARGS[@]}"})
+
 # ---------- 2. 写入 ----------
 PY="$(find_python)" || fail "未找到可用的 Python3（需要 3.6 及以上）"
 
@@ -121,9 +157,9 @@ ARGS=(--set)
 [ -n "$AUTH_USER" ] && ARGS+=(--user "$AUTH_USER")
 
 if [ -n "$AUTH_PASS" ]; then
-  printf '%s' "$AUTH_PASS" | "$PY" "$APP_PY" "${ARGS[@]}" --pass-stdin >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
+  printf '%s' "$AUTH_PASS" | "$PY" "$APP_PY" "${ARGS[@]}" ${EXTRA[@]+"${EXTRA[@]}"} --pass-stdin >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
 else
-  "$PY" "$APP_PY" "${ARGS[@]}" >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
+  "$PY" "$APP_PY" "${ARGS[@]}" ${EXTRA[@]+"${EXTRA[@]}"} >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
 fi
 
 if [ -f "$SETTINGS" ]; then
@@ -152,5 +188,5 @@ else
   log "应用当前未运行，配置将在下次启动时生效"
 fi
 
-log "设置已保存：端口=${PORT:-未变} 用户认证=${AUTH:-未变}"
+log "设置已保存：端口=${PORT:-未变} 用户认证=${AUTH:-未变} 高级项参数 ${#EXTRA[@]} 个"
 exit 0

@@ -126,19 +126,19 @@ FPK 工程共 21 个源文件，按职责归类：
 
 | # | 文件 | 行数 | 大小 | 职责 |
 | --- | --- | --- | --- | --- |
-| 1 | `manifest` | 15 | 3801 B | 应用清单：appname/版本/入口/端口/平台 |
+| 1 | `manifest` | 15 | 4879 B | 应用清单：appname/版本/入口/端口/平台 |
 | 2 | `app/ui/config` | 16 | 321 B | 桌面入口 JSON，端口写 `${wizard_port}` |
 | 3 | `config/privilege` | 7 | 107 B | 运行身份：`run-as: package` |
 | 4 | `config/resource` | 5 | 43 B | 资源声明（数据共享为空） |
 | 5 | `wizard/install` | 71 | 2205 B | 安装向导：端口 + 认证三项 |
-| 6 | `wizard/config` | 71 | 2060 B | 设置向导（装后调整，同名字段） |
+| 6 | `wizard/config` | 176 | 5590 B | 设置向导（装后调整，同名字段） |
 | 7 | `wizard/uninstall` | 24 | 733 B | 卸载向导：保留 / 删除配置 |
-| 8 | `app/server/app.py` | 998 | 40551 B | 服务端：静态托管 + 端口配置 + 可选认证 |
+| 8 | `app/server/app.py` | 1797 | 78325 B | 服务端：静态托管 + 端口配置 + 可选认证 |
 | 9 | `cmd/main` | 183 | 4816 B | start / stop / status 入口 |
 | 10 | `cmd/install_init` | 46 | 1601 B | 安装前：Python、端口、密码校验 |
 | 11 | `cmd/install_callback` | 147 | 5110 B | 安装后：落盘配置 + 修权限 |
 | 12 | `cmd/config_init` | 5 | 131 B | 配置前：空操作 |
-| 13 | `cmd/config_callback` | 156 | 5513 B | 设置保存后：写配置 + 按需重启 |
+| 13 | `cmd/config_callback` | 192 | 6933 B | 设置保存后：写配置 + 按需重启 |
 | 14 | `cmd/upgrade_init` | 12 | 237 B | 升级前：停旧进程 |
 | 15 | `cmd/upgrade_callback` | 91 | 3118 B | 升级后：保留配置、补默认值 |
 | 16 | `cmd/uninstall_init` | 12 | 272 B | 卸载前：停进程 |
@@ -165,10 +165,10 @@ FPK 工程共 21 个源文件，按职责归类：
 
 ```ini
 appname               = fnos-qrcode
-version               = 1.0.4
+version               = 1.1.0
 display_name          = 二维码批量生成器
-desc                  = 简单高效的二维码批量生成工具。在页面里每行输入一个内容，即可一次性生成对应的二维码，支持文本与网址。<br /><strong>主要能力</strong><br />· 批量生成：一行一条，一次最多 200 个<br />· 多条导入：支持 <code>.txt</code> / <code>.csv</code> / <code>.tsv</code>，也可直接把文件拖到输入框<br />· 实时预览：生成后网格预览，可单张下载或一键打包成 zip<br />· 最近记录：本地保存最近几次生成，点击即可重新载入<br /><strong>关于端口与认证</strong><br />· 服务端口安装时填写，默认 <code>10001</code>，装好后可在应用中心「设置」里修改<br />· 用户认证可选：开启后访问本应用需先登录，安装时和装好后都能调整<br /><strong>数据说明</strong><br />二维码由草料开放平台公开接口实时生成，输入内容只在你自己的浏览器里处理，不会写盘、不会上传。
-changelog              = 1.0.4：登录失败锁定逻辑调整。① 失败计数改为按「来源 IP」统一累计——同一 IP 换个用户名再试不会洗掉计数，达到 5 次即锁定该 IP。② 取消内网豁免：回环与私网来源同样受限流保护，局域网部署下锁定真正生效（如需放行特定网段，可在 LOGIN_LOCK_TRUSTED_PREFIXES 里配置）。③ 新增 120 秒连续失败窗口：两次失败间隔超过 120 秒则计数清零，避免隔几天累计 5 次被误锁。④ 锁定期间在登录按钮下方实时倒计时，秒数由服务端渲染，刷新后仍准确恢复。<br />1.0.3：安全加固（依据第三轮渗透测试报告）。① 登录失败计数改为按「来源 + 用户名」记账，攻击者用伪造用户名刷失败不再能锁死管理员登录入口；回环与私网来源直接不锁定，避免把自己锁在门外。② 登录错误提示去掉「还可尝试 N 次」，不再泄露剩余次数（锁定倒计时保留）。③ 登录表单加入一次性 CSRF 令牌。④ 补齐安全响应头（CSP / X-Frame-Options / Referrer-Policy 等）。⑤ 登出后对应会话立即失效。⑥ 拒绝 HTTP/0.9 简写请求，超大请求头返回 431，非法 Host 返回 400，超大 POST body 返回 413。<br />1.0.2：修复登录限流。① 锁定倒计时现在按秒实时递减，归零后自动恢复登录按钮（此前是服务端渲染一次的静态数字，看着一直不动）。② 修复「等一会儿刷新再登录仍显示 56 秒」：锁定期内的重复提交不再延长锁定窗口，锁定到期后失败计数清零。③ 同一 IP 连续失败 5 次后的锁定时间由 60 秒延长为 120 秒。<br />1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
+desc                  = 简单高效的二维码批量生成工具。在页面里每行输入一个内容，即可一次性生成对应的二维码，支持文本与网址。<br /><strong>主要能力</strong><br />· 批量生成：一行一条，一次最多 200 个<br />· 多条导入：支持 <code>.txt</code> / <code>.csv</code> / <code>.tsv</code>，也可直接把文件拖到输入框<br />· 实时预览：生成后网格预览，可单张下载或一键打包成 zip<br />· 最近记录：本地保存最近几次生成，点击即可重新载入<br /><strong>账号与登录安全</strong><br />· 多账号：最多 10 个账号，每个账号可单独设置「最多几台设备同时登录」或设为不限设备<br />· 登录限制：连续失败次数、锁定时长、IP 黑白名单均可配置<br />· 账号管理与「在线设备查看 / 踢出」在应用内「设置」页；基础项也可在应用中心「设置」里调整<br /><strong>关于端口与认证</strong><br />· 服务端口安装时填写，默认 <code>10001</code>，装好后可在应用中心「设置」里修改<br />· 用户认证可选：开启后访问本应用需先登录，安装时和装好后都能调整<br /><strong>数据说明</strong><br />二维码由草料开放平台公开接口实时生成，输入内容只在你自己的浏览器里处理，不会写盘、不会上传。
+changelog              = 1.1.0：多账号与可配置的登录安全。① 支持多账号（最多 10 个），每个账号可单独设置「最多几台设备同时登录」，也可设为「不限设备」。② 修复「登录框输入中文时报 ERR_EMPTY_RESPONSE」：比较用户名时对非 ASCII 字符会抛异常导致连接被静默关闭，现已修正并加了兜底（任何异常都返回 500 而不是断开）。③ 失败次数、锁定时长改为可配置。④ 新增登录 IP 黑白名单（只作用于登录提交，支持网段，回环始终放行）。⑤ 新增应用内「设置」页：账号增删改、登录安全参数、IP 名单、在线设备查看与踢出。<br />1.0.4：登录失败锁定逻辑调整。① 失败计数改为按「来源 IP」统一累计——同一 IP 换个用户名再试不会洗掉计数，达到 5 次即锁定该 IP。② 取消内网豁免：回环与私网来源同样受限流保护，局域网部署下锁定真正生效（如需放行特定网段，可在 LOGIN_LOCK_TRUSTED_PREFIXES 里配置）。③ 新增 120 秒连续失败窗口：两次失败间隔超过 120 秒则计数清零，避免隔几天累计 5 次被误锁。④ 锁定期间在登录按钮下方实时倒计时，秒数由服务端渲染，刷新后仍准确恢复。<br />1.0.3：安全加固（依据第三轮渗透测试报告）。① 登录失败计数改为按「来源 + 用户名」记账，攻击者用伪造用户名刷失败不再能锁死管理员登录入口；回环与私网来源直接不锁定，避免把自己锁在门外。② 登录错误提示去掉「还可尝试 N 次」，不再泄露剩余次数（锁定倒计时保留）。③ 登录表单加入一次性 CSRF 令牌。④ 补齐安全响应头（CSP / X-Frame-Options / Referrer-Policy 等）。⑤ 登出后对应会话立即失效。⑥ 拒绝 HTTP/0.9 简写请求，超大请求头返回 431，非法 Host 返回 400，超大 POST body 返回 413。<br />1.0.2：修复登录限流。① 锁定倒计时现在按秒实时递减，归零后自动恢复登录按钮（此前是服务端渲染一次的静态数字，看着一直不动）。② 修复「等一会儿刷新再登录仍显示 56 秒」：锁定期内的重复提交不再延长锁定窗口，锁定到期后失败计数清零。③ 同一 IP 连续失败 5 次后的锁定时间由 60 秒延长为 120 秒。<br />1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
 platform              = all
 source                = thirdparty
 maintainer            = Firlsy
@@ -252,7 +252,6 @@ desktop_applaunchname = fnos-qrcode.Application
 ### 4.5 `wizard/install` —— 安装向导
 
 ```json
-
 [
   {
     "stepTitle": "服务端口",
@@ -329,7 +328,6 @@ desktop_applaunchname = fnos-qrcode.Application
 ### 4.6 `wizard/config` —— 设置（装后调整）向导
 
 ```json
-
 [
   {
     "stepTitle": "服务端口",
@@ -399,6 +397,111 @@ desktop_applaunchname = fnos-qrcode.Application
         ]
       }
     ]
+  },
+  {
+    "stepTitle": "登录安全（可选）",
+    "items": [
+      {
+        "type": "text",
+        "field": "wizard_max_fail",
+        "label": "连续失败次数",
+        "helpText": "同一 IP 在锁定时长内连续登录失败达到该次数，即锁定该 IP。取值 1~999。留空表示保持当前设置不变。",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^$|^[0-9]{1,3}$",
+            "message": "请填写 1~999 的整数，或留空保持不变"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_lock_seconds",
+        "label": "锁定时长（秒）",
+        "helpText": "被锁定后需要等待多少秒才能再次尝试登录。取值 5~86400（最长 24 小时）。留空表示保持当前设置不变。",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^$|^[0-9]{1,5}$",
+            "message": "请填写 5~86400 的整数，或留空保持不变"
+          }
+        ]
+      },
+      {
+        "type": "select",
+        "field": "wizard_device_limit",
+        "label": "限制每个账号的在线设备数",
+        "helpText": "开启后每个账号最多只能有指定数量的设备同时登录，达到上限时新的登录会被拒绝（可在应用内「设置」页踢掉旧设备释放名额）。",
+        "initValue": "keep",
+        "options": [
+          {
+            "label": "保持不变",
+            "value": "keep"
+          },
+          {
+            "label": "开启",
+            "value": "on"
+          },
+          {
+            "label": "关闭（不限设备数）",
+            "value": "off"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_max_devices",
+        "label": "新账号默认设备上限",
+        "helpText": "新增账号时默认沿用的设备数上限。取值 1~999，留空表示保持不变；单个账号的实际上限可在应用内「设置」页单独调整。",
+        "initValue": "",
+        "rules": [
+          {
+            "pattern": "^$|^[0-9]{1,3}$",
+            "message": "请填写 1~999 的整数，或留空保持不变"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "stepTitle": "IP 名单（可选）",
+    "items": [
+      {
+        "type": "select",
+        "field": "wizard_ip_filter",
+        "label": "启用登录 IP 黑白名单",
+        "helpText": "只作用于「提交登录」这一步，浏览页面不受影响；回环地址（本机）始终放行，避免把自己关在外面。",
+        "initValue": "keep",
+        "options": [
+          {
+            "label": "保持不变",
+            "value": "keep"
+          },
+          {
+            "label": "开启",
+            "value": "on"
+          },
+          {
+            "label": "关闭",
+            "value": "off"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_ip_blacklist",
+        "label": "IP 黑名单",
+        "helpText": "命中即拒绝登录。支持单个 IP 与网段（如 192.168.1.50、10.0.0.0/8），多个用逗号分隔。留空表示保持不变；填一个空格可清空。",
+        "initValue": ""
+      },
+      {
+        "type": "text",
+        "field": "wizard_ip_whitelist",
+        "label": "IP 白名单",
+        "helpText": "填写后只有名单内的来源可以提交登录（回环除外）；黑名单优先级更高。留空表示保持不变；填一个空格可清空。",
+        "initValue": ""
+      }
+    ]
   }
 ]
 ```
@@ -412,8 +515,20 @@ desktop_applaunchname = fnos-qrcode.Application
 | --- | --- | --- |
 | `wizard_port` | text | `port`（整数） |
 | `wizard_auth_enable` | select `on`/`off` | `auth.enabled`（布尔） |
-| `wizard_auth_user` | text | `auth.username` |
-| `wizard_auth_pass` | password | `auth.password`（**PBKDF2 哈希**，非明文） |
+| `wizard_auth_user` | text | `accounts[].user`（唯一账号时是重命名，否则新增） |
+| `wizard_auth_pass` | password | `accounts[].password`（**PBKDF2 哈希**，非明文） |
+| `wizard_max_fail` | text（留空=不变） | `login_security.max_fail` |
+| `wizard_lock_seconds` | text（留空=不变） | `login_security.lock_seconds` |
+| `wizard_device_limit` | select `keep`/`on`/`off` | `login_security.device_limit_enabled` |
+| `wizard_max_devices` | text（留空=不变） | `login_security.default_max_devices` |
+| `wizard_ip_filter` | select `keep`/`on`/`off` | `login_security.ip_filter_enabled` |
+| `wizard_ip_blacklist` | text（留空=不变，空格=清空） | `login_security.ip_blacklist`（数组） |
+| `wizard_ip_whitelist` | text（留空=不变，空格=清空） | `login_security.ip_whitelist`（数组） |
+
+> v1.1.0 新增的三组字段全部遵循「**留空 / keep = 保持原值**」，
+> 这样设置向导不必回填当前值也能安全保存。
+> 账号的**列表级操作**（新增第 2 个以后的账号、逐个改设备上限、踢设备）静态表单表达不了，
+> 统一放在**应用内 `/settings` 页**。
 
 ### 4.7 `wizard/uninstall` —— 卸载向导
 
@@ -501,6 +616,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import mimetypes
 import os
@@ -517,14 +633,16 @@ from urllib.parse import parse_qs, unquote_plus, urlencode
 from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.0.4'
+APPVERSION = '1.1.0'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
 SESSION_TTL = 7 * 24 * 3600          # 7 天
 PBKDF2_ITERATIONS = 200_000
-LOGIN_MAX_FAIL = 5
-LOGIN_LOCK_SECONDS = 120
+LOGIN_MAX_FAIL = 5                   # 失败次数默认值（可在设置里改）
+LOGIN_LOCK_SECONDS = 120             # 锁定时长默认值（可在设置里改）
+DEFAULT_MAX_DEVICES = 3              # 每个账号默认允许同时在线的设备数
+MAX_ACCOUNTS = 10                    # 账号数量上限（设置页 / 向导都受此约束）
 CSRF_TTL = 30 * 60                   # 登录表单 token 有效期（秒）
 MAX_BODY = 64 * 1024                 # POST body 上限
 MAX_HEADER_LINE = 8192               # 单行请求头上限（默认 65536 太宽松）
@@ -600,7 +718,162 @@ def settings_path():
 # 配置读写
 # --------------------------------------------------------------------------- #
 def default_settings():
-    return {'port': DEFAULT_PORT, 'auth': {'enabled': False, 'username': 'admin', 'password': None}}
+    return {
+        'port': DEFAULT_PORT,
+        'auth': {'enabled': False},
+        'accounts': [],
+        'login_security': {
+            'max_fail': LOGIN_MAX_FAIL,
+            'lock_seconds': LOGIN_LOCK_SECONDS,
+            'device_limit_enabled': True,
+            'default_max_devices': DEFAULT_MAX_DEVICES,
+            'ip_filter_enabled': False,
+            'ip_blacklist': [],
+            'ip_whitelist': [],
+        },
+    }
+
+
+def normalize_int(value, fallback, low, high):
+    """把任意输入收敛成 [low, high] 内的整数；非法时返回 fallback。"""
+    try:
+        num = int(str(value).strip())
+    except (TypeError, ValueError):
+        return fallback
+    return num if low <= num <= high else fallback
+
+
+def normalize_account(raw):
+    """把一条账号记录收敛成规范结构；不合法返回 None。"""
+    if not isinstance(raw, dict):
+        return None
+    user = str(raw.get('user') or '').strip()
+    if not user or len(user) > 32:
+        return None
+    return {
+        'user': user,
+        'password': raw.get('password') if isinstance(raw.get('password'), dict) else None,
+        'max_devices': normalize_int(raw.get('max_devices'), DEFAULT_MAX_DEVICES, 1, 999),
+        'unlimited_devices': bool(raw.get('unlimited_devices', False)),
+    }
+
+
+def normalize_accounts(raw):
+    out, seen = [], set()
+    if isinstance(raw, list):
+        for item in raw:
+            acc = normalize_account(item)
+            if acc and acc['user'] not in seen:
+                seen.add(acc['user'])
+                out.append(acc)
+            if len(out) >= MAX_ACCOUNTS:
+                break
+    return out
+
+
+def normalize_ip_list(raw):
+    """把 'IP, CIDR; IP' 这类输入收敛成去重列表（最多 64 条）。"""
+    if isinstance(raw, str):
+        raw = re.split(r'[\s,;]+', raw)
+    if not isinstance(raw, (list, tuple)):
+        return []
+    out = []
+    for item in raw:
+        text = str(item).strip()
+        if text and text not in out:
+            out.append(text)
+    return out[:64]
+
+
+def escape_html(text):
+    """把用户可控字符串安全地放进 HTML（用户名、消息文案等都要过一遍）。"""
+    return (str(text).replace('&', '&amp;').replace('<', '&lt;')
+            .replace('>', '&gt;').replace('"', '&quot;').replace("'", '&#39;'))
+
+
+def ip_matches(ip, entries):
+    """ip 是否命中 entries 中的某一条；支持单个 IP 与 CIDR 网段（192.168.1.0/24）。"""
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for item in entries or []:
+        text = str(item).strip()
+        if not text:
+            continue
+        try:
+            if '/' in text:
+                if addr in ipaddress.ip_network(text, strict=False):
+                    return True
+            elif addr == ipaddress.ip_address(text):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def is_loopback(ip):
+    try:
+        return ipaddress.ip_address(ip).is_loopback
+    except ValueError:
+        return False
+
+
+def _valid_cidr(text):
+    """校验单个 IP 或 CIDR 网段是否合法。"""
+    try:
+        if '/' in str(text):
+            ipaddress.ip_network(str(text), strict=False)
+        else:
+            ipaddress.ip_address(str(text))
+        return True
+    except ValueError:
+        return False
+
+
+def coerce_settings(data):
+    """把任意（可能不完整、或是旧版结构）的配置补齐成完整结构。
+
+    `load_settings()` 与 `build_server()` 都走这里，因此：
+    - 手工写了一半的 settings.json 不会让服务起不来；
+    - v1.0.4 及更早的 `auth.username / auth.password` 单账号配置会自动迁移成 accounts[0]。
+    """
+    base = default_settings()
+    if not isinstance(data, dict):
+        return base
+
+    base['port'] = normalize_port(data.get('port'), fallback=DEFAULT_PORT)
+
+    auth = data.get('auth') if isinstance(data.get('auth'), dict) else {}
+    base['auth'] = {'enabled': bool(auth.get('enabled', False))}
+
+    accounts = normalize_accounts(data.get('accounts'))
+    if not accounts:
+        # 兼容 v1.0.4 及更早的「单账号」配置
+        legacy_user = str(auth.get('username') or '').strip()
+        legacy_pw = auth.get('password') if isinstance(auth.get('password'), dict) else None
+        if legacy_user and legacy_pw:
+            accounts = [{'user': legacy_user, 'password': legacy_pw,
+                         'max_devices': DEFAULT_MAX_DEVICES,
+                         'unlimited_devices': False}]
+    base['accounts'] = accounts
+
+    sec = data.get('login_security') if isinstance(data.get('login_security'), dict) else {}
+    base['login_security'] = {
+        'max_fail': normalize_int(sec.get('max_fail'), LOGIN_MAX_FAIL, 1, 999),
+        'lock_seconds': normalize_int(sec.get('lock_seconds'), LOGIN_LOCK_SECONDS, 5, 86400),
+        'device_limit_enabled': bool(sec.get('device_limit_enabled', True)),
+        'default_max_devices': normalize_int(sec.get('default_max_devices'),
+                                             DEFAULT_MAX_DEVICES, 1, 999),
+        'ip_filter_enabled': bool(sec.get('ip_filter_enabled', False)),
+        'ip_blacklist': normalize_ip_list(sec.get('ip_blacklist')),
+        'ip_whitelist': normalize_ip_list(sec.get('ip_whitelist')),
+    }
+
+    key = data.get('session_key')
+    if isinstance(key, str) and len(key) >= 32:
+        base['session_key'] = key
+    return base
 
 
 def load_settings():
@@ -611,19 +884,7 @@ def load_settings():
             data = json.load(fh)
     except (OSError, ValueError):
         data = {}
-    if not isinstance(data, dict):
-        data = {}
-
-    base = default_settings()
-    base['port'] = normalize_port(data.get('port'), fallback=DEFAULT_PORT)
-
-    auth = data.get('auth') if isinstance(data.get('auth'), dict) else {}
-    base['auth'] = {
-        'enabled': bool(auth.get('enabled', False)),
-        'username': str(auth.get('username') or 'admin'),
-        'password': auth.get('password') if isinstance(auth.get('password'), dict) else None,
-    }
-    return base
+    return coerce_settings(data)
 
 
 def save_settings(settings):
@@ -674,27 +935,61 @@ def verify_password(raw, record):
     if not salt or not expected:
         return False
     derived = hashlib.pbkdf2_hmac('sha256', raw.encode('utf-8'), salt, iterations)
-    return hmac.compare_digest(derived.hex(), expected)
+    # 同上：compare_digest 只接受纯 ASCII 的 str，统一按 bytes 比较更稳
+    return hmac.compare_digest(derived.hex().encode('ascii'), expected.encode('utf-8'))
 
 
 def session_secret(settings):
     """会话签名密钥。
 
-    由「密码哈希 + 应用名」派生，不额外落盘：这样服务进程完全不需要写配置文件，
-    避免安装脚本（可能以 root 运行）与运行用户（package）权限不一致导致写失败。
-    副作用是改密码会让已登录会话失效，这符合预期。
+    用配置文件里的 `session_key`（首次调用时生成并落盘）。这样：
+
+    - **增删账号、改密码、重启应用都不会把已登录设备踢下线** —— 否则设备数量
+      限制会被"配置一改就全员掉线"抵消掉；
+    - 需要强制所有人重新登录时，把 settings.json 里的 `session_key` 删掉再重启即可；
+    - 落盘失败（例如配置文件只读）时退回"每次启动随机"，此时重启会让会话失效。
     """
-    record = settings['auth'].get('password')
-    if isinstance(record, dict) and record.get('hash'):
-        seed = '%s|%s|%s' % (record.get('hash', ''), record.get('salt', ''), APPNAME)
-    else:
-        # 未开启认证时不会被用到，给个进程内随机值即可
-        seed = secrets.token_hex(16)
-    return hashlib.sha256(seed.encode('utf-8')).hexdigest()
+    key = settings.get('session_key')
+    if not isinstance(key, str) or len(key) < 32:
+        key = secrets.token_hex(32)
+        settings['session_key'] = key
+    return hashlib.sha256((key + '|' + APPNAME).encode('utf-8')).hexdigest()
+
+
+def find_account(settings, username):
+    """按用户名精确匹配账号；找不到返回 None。"""
+    for acc in settings.get('accounts') or []:
+        if hmac.compare_digest(str(acc.get('user', '')).encode('utf-8'),
+                               str(username).encode('utf-8')):
+            return acc
+    return None
+
+
+def verify_login(settings, username, password):
+    """遍历账号校验凭据，命中则返回该账号，否则 None。
+
+    用户名不匹配时也会**跑一次 PBKDF2**（拿首个账号的哈希当诱饵），
+    避免从响应时间上判断「某个用户名是否存在」。
+    最多只做一次哈希运算，不会因为账号变多而拖慢登录。
+    """
+    accounts = settings.get('accounts') or []
+    matched = find_account(settings, username)
+    if matched is not None:
+        return matched if verify_password(password, matched.get('password')) else None
+    decoy = accounts[0].get('password') if accounts else None
+    verify_password(password, decoy)
+    return None
 
 
 def make_session(secret, username):
-    payload = json.dumps({'u': username, 'exp': int(time.time()) + SESSION_TTL},
+    """签发会话令牌。
+
+    payload 里带一个随机 `n`：否则同一账号在同一秒内登录两次会生成**完全相同的
+    token**，导致 ① 设备登记表被覆盖、设备数统计失效；② 登出一台设备把另一台
+    也一起登出。
+    """
+    payload = json.dumps({'u': username, 'exp': int(time.time()) + SESSION_TTL,
+                          'n': secrets.token_hex(8)},
                          separators=(',', ':')).encode('utf-8')
     body = base64.urlsafe_b64encode(payload).decode('ascii').rstrip('=')
     sig = hmac.new(secret.encode('utf-8'), body.encode('ascii'), hashlib.sha256).hexdigest()[:32]
@@ -818,6 +1113,10 @@ LOGIN_LOCK_NOTICE = """
 """
 
 LOGOUT_BUTTON = (
+    '<a href="/settings" style="position:fixed;right:96px;bottom:14px;z-index:99;'
+    "font:12px/1.4 -apple-system,'PingFang SC','Microsoft YaHei',sans-serif;color:#6b7280;"
+    'background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:7px 11px;'
+    'text-decoration:none;box-shadow:0 1px 3px rgba(16,24,40,.07)">设置</a>'
     '<a href="/logout" style="position:fixed;right:14px;bottom:14px;z-index:99;'
     "font:12px/1.4 -apple-system,'PingFang SC','Microsoft YaHei',sans-serif;color:#6b7280;"
     'background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:7px 11px;'
@@ -826,11 +1125,248 @@ LOGOUT_BUTTON = (
 
 
 # --------------------------------------------------------------------------- #
+# 设置页（需登录）
+# --------------------------------------------------------------------------- #
+SETTINGS_PAGE = """<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设置 · 二维码批量生成器</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#f9fafb;color:#1f2937;padding:26px 18px 60px;
+       font:13.5px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif}
+  .wrap{max-width:920px;margin:0 auto}
+  header{display:flex;align-items:baseline;gap:12px;margin-bottom:18px}
+  h1{font-size:19px}
+  header a{font-size:13px;color:#3b82f6;text-decoration:none}
+  header a:hover{text-decoration:underline}
+  h2{font-size:15px;margin:26px 0 8px;padding-bottom:7px;border-bottom:1px solid #e9ecef}
+  p.hint{color:#6b7280;font-size:12.5px;margin:0 0 10px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e9ecef;border-radius:9px;overflow:hidden}
+  th{background:#f3f5f7;text-align:left;font-weight:500;font-size:12.5px;color:#4b5563;padding:8px 11px;border-bottom:1px solid #e9ecef}
+  td{padding:10px 11px;border-bottom:1px solid #eef0f2;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .u{font-weight:500}
+  .dev{color:#9ca3af;font-size:11.5px;font-weight:400}
+  form{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+  form.inline{gap:8px;margin:0}
+  input[type=text],input[type=password],input[type=number]{
+    height:34px;border:1px solid #d7dbe0;border-radius:6px;padding:0 10px;font-size:13px;
+    font-family:inherit;color:#374151;outline:none;background:#fff}
+  input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  input.num{width:74px}
+  input.pw{width:170px}
+  input.wide{flex:1;min-width:260px}
+  label.cb{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:#4b5563;white-space:nowrap}
+  button{height:34px;border:none;border-radius:6px;background:#3b82f6;color:#fff;
+         font-size:13px;font-family:inherit;padding:0 15px;cursor:pointer}
+  button:hover{background:#2563eb}
+  button.mini{background:#fff;color:#374151;border:1px solid #d7dbe0;padding:0 12px}
+  button.mini:hover{background:#f3f5f7}
+  button.danger{background:#fff;color:#c02626;border:1px solid #f0c4c4}
+  button.danger:hover{background:#fdecec}
+  .box{background:#fff;border:1px solid #e9ecef;border-radius:9px;padding:14px 15px;margin-bottom:12px}
+  .box form{margin-top:10px}
+  .flash{padding:10px 13px;border-radius:8px;font-size:13px;margin-bottom:16px}
+  .flash.ok{background:#e8f6ee;border:1px solid #bfe3ce;color:#0f7b46}
+  .flash.err{background:#fdecec;border:1px solid #f3c9c9;color:#c02626}
+  .empty{color:#9ca3af;font-size:12.5px;padding:6px 0}
+  .foot{margin-top:34px;color:#9ca3af;font-size:11.5px}
+</style></head>
+<body><div class="wrap">
+  <header>
+    <h1>设置</h1>
+    <a href="/">← 返回首页</a>
+    <a href="/logout" style="margin-left:auto">退出登录（__USER__）</a>
+  </header>
+  {{FLASH}}
+
+  <h2>账号（最多 __MAXACCOUNTS__ 个）</h2>
+  <p class="hint">「设备上限」是同一账号可同时在线的设备数；勾选「不限设备」则该账号不受限制。
+     在线设备数统计的是当前进程内的会话，应用重启后重新累计。</p>
+  <table>
+    <thead><tr><th style="width:190px">账号</th><th>设备上限 / 新密码</th><th style="width:96px">删除</th></tr></thead>
+    <tbody>{{ACCOUNTS}}</tbody>
+  </table>
+
+  <div class="box">
+    <strong>新增账号</strong>
+    <form method="post" action="/settings">
+      {{CSRF_ADD}}
+      <input type="hidden" name="action" value="account_add">
+      <input type="text" name="user" placeholder="用户名（1~32 位字母数字 _ . -）" required>
+      <input type="password" name="pass" placeholder="密码（至少 6 位）" required>
+      <input type="number" name="max_devices" class="num" min="1" max="999" value="__DEFDEV__">
+      <label class="cb"><input type="checkbox" name="unlimited" value="1"> 不限设备</label>
+      <button type="submit">新增</button>
+    </form>
+  </div>
+
+  <h2>登录安全</h2>
+  <div class="box">
+    <form method="post" action="/settings">
+      {{CSRF_SEC}}
+      <input type="hidden" name="action" value="security">
+      <label class="cb">连续失败次数 <input type="number" name="max_fail" class="num" min="1" max="999" value="__MAXFAIL__"></label>
+      <label class="cb">锁定时长（秒） <input type="number" name="lock_seconds" class="num" min="5" max="86400" value="__LOCKSEC__"></label>
+      <label class="cb"><input type="checkbox" name="device_limit_enabled" value="1" __DEVON__> 启用「每账号最多 N 台设备」</label>
+      <label class="cb">默认上限 <input type="number" name="default_max_devices" class="num" min="1" max="999" value="__DEFDEV__"></label>
+      <button type="submit">保存</button>
+    </form>
+    <p class="hint" style="margin-top:9px">锁定粒度是**来源 IP**：同一 IP 在 120 秒内连续失败达到设定次数即锁定该 IP；
+       达到设备上限时**拒绝新登录**，可在应用中心「设置」里临时调高上限或用下方「踢出」释放名额。</p>
+  </div>
+
+  <h2>IP 名单（只作用于登录提交）</h2>
+  <div class="box">
+    <form method="post" action="/settings">
+      {{CSRF_IP}}
+      <input type="hidden" name="action" value="ipfilter">
+      <label class="cb"><input type="checkbox" name="enabled" value="1" __IPON__> 启用 IP 名单</label>
+      <div style="flex-basis:100%"></div>
+      <label class="cb">黑名单（命中即拒绝）</label>
+      <input type="text" name="blacklist" class="wide" value="__BLACK__" placeholder="192.168.1.50, 10.0.0.0/8">
+      <div style="flex-basis:100%"></div>
+      <label class="cb">白名单（非空时仅这些来源可登录）</label>
+      <input type="text" name="whitelist" class="wide" value="__WHITE__" placeholder="192.168.1.0/24">
+      <button type="submit">保存</button>
+    </form>
+    <p class="hint" style="margin-top:9px">支持单个 IP 与网段（如 <code>192.168.1.0/24</code> 或 <code>10.0.0.0/8</code>），
+       多条用逗号分隔。页面浏览不受影响，只在提交登录时判断；**回环地址始终放行**，避免把自己关在外面。</p>
+  </div>
+
+  <h2>当前在线设备（账号：__USER__）</h2>
+  <table>
+    <thead><tr><th>登录时间</th><th>剩余有效期</th><th style="width:110px">操作</th></tr></thead>
+    <tbody>{{DEVICES}}</tbody>
+  </table>
+  <div class="box" style="margin-top:12px">
+    <form method="post" action="/settings">
+      {{CSRF_KICK}}
+      <input type="hidden" name="action" value="revoke_others">
+      <input type="hidden" name="user" value="__USERRAW__">
+      <button type="submit" class="mini">退出本账号的其他全部设备</button>
+    </form>
+  </div>
+
+  <p class="foot">fnOS 应用 · fnos-qrcode · 配置文件 $TRIM_PKGETC/settings.json</p>
+</div></body></html>
+"""
+
+
+def _fmt_time(ts):
+    try:
+        return time.strftime('%Y-%m-%d %H:%M', time.localtime(float(ts)))
+    except (TypeError, ValueError, OSError):
+        return '-'
+
+
+def _fmt_left(ts):
+    try:
+        left = int(float(ts) - time.time())
+    except (TypeError, ValueError):
+        return '-'
+    if left <= 0:
+        return '已过期'
+    return '%d 天 %d 小时' % (left // 86400, (left % 86400) // 3600)
+
+
+def render_settings_page(server, user, flash=None, flash_kind='ok', current_token=''):
+    """服务端渲染设置页。每个表单各自领一个一次性 CSRF 令牌。"""
+    settings = server.settings
+    sec = settings['login_security']
+    accounts = settings.get('accounts') or []
+    issue = server.csrf_guard.issue
+
+    rows = []
+    for acc in accounts:
+        raw_user = acc['user']
+        safe_user = escape_html(raw_user)
+        online = server.session_store.count(raw_user)
+        rows.append(
+            '<tr>'
+            '<td class="u">%s<div class="dev">在线 %d 台</div></td>'
+            '<td><form method="post" action="/settings">'
+            '<input type="hidden" name="csrf_token" value="%s">'
+            '<input type="hidden" name="action" value="account_update">'
+            '<input type="hidden" name="user" value="%s">'
+            '<input type="number" name="max_devices" class="num" min="1" max="999" value="%d">'
+            '<label class="cb"><input type="checkbox" name="unlimited" value="1"%s>不限设备</label>'
+            '<input type="password" name="pass" class="pw" placeholder="新密码（留空不改）">'
+            '<button type="submit" class="mini">保存</button>'
+            '</form></td>'
+            '<td><form method="post" action="/settings">'
+            '<input type="hidden" name="csrf_token" value="%s">'
+            '<input type="hidden" name="action" value="account_delete">'
+            '<input type="hidden" name="user" value="%s">'
+            '<button type="submit" class="danger">删除</button>'
+            '</form></td>'
+            '</tr>'
+            % (safe_user, online, issue(), escape_html(raw_user),
+               int(acc.get('max_devices') or DEFAULT_MAX_DEVICES),
+               ' checked' if acc.get('unlimited_devices') else '',
+               issue(), escape_html(raw_user)))
+
+    devices = server.session_store.devices(user)
+    current = current_token if isinstance(current_token, str) else ''
+    drows = []
+    for i, dev in enumerate(devices):
+        is_me = (dev['token'] == current)
+        drows.append(
+            '<tr><td>%s</td><td>%s</td><td>%s</td></tr>'
+            % (_fmt_time(dev['issued']), _fmt_left(dev['exp']),
+               ('<span style="color:#9ca3af;font-size:12px">当前设备</span>' if is_me else
+                '<form method="post" action="/settings">'
+                '<input type="hidden" name="csrf_token" value="%s">'
+                '<input type="hidden" name="action" value="revoke_device">'
+                '<input type="hidden" name="token" value="%s">'
+                '<input type="hidden" name="user" value="%s">'
+                '<button type="submit" class="mini">踢出</button></form>'
+                % (issue(), escape_html(dev['token']), escape_html(user))))
+        )
+
+    flash_html = ''
+    if flash:
+        flash_html = '<div class="flash %s">%s</div>' % (
+            'err' if flash_kind == 'err' else 'ok', escape_html(flash))
+
+    page = (SETTINGS_PAGE
+            .replace('{{FLASH}}', flash_html)
+            .replace('{{ACCOUNTS}}', ''.join(rows) or
+                     '<tr><td colspan="3" class="empty">还没有账号。请先新增一个，否则登录页无法登录。</td></tr>')
+            .replace('{{DEVICES}}', ''.join(drows) or
+                     '<tr><td colspan="3" class="empty">没有记录到在线设备。</td></tr>')
+            .replace('{{CSRF_ADD}}', '<input type="hidden" name="csrf_token" value="%s">' % issue())
+            .replace('{{CSRF_SEC}}', '<input type="hidden" name="csrf_token" value="%s">' % issue())
+            .replace('{{CSRF_IP}}', '<input type="hidden" name="csrf_token" value="%s">' % issue())
+            .replace('{{CSRF_KICK}}', '<input type="hidden" name="csrf_token" value="%s">' % issue())
+            .replace('__MAXACCOUNTS__', str(MAX_ACCOUNTS))
+            .replace('__USERRAW__', escape_html(user))
+            .replace('__USER__', escape_html(user))
+            .replace('__MAXFAIL__', str(sec['max_fail']))
+            .replace('__LOCKSEC__', str(sec['lock_seconds']))
+            .replace('__DEFDEV__', str(sec['default_max_devices']))
+            .replace('__DEVON__', ' checked' if sec['device_limit_enabled'] else '')
+            .replace('__IPON__', ' checked' if sec['ip_filter_enabled'] else '')
+            .replace('__BLACK__', escape_html(', '.join(sec['ip_blacklist'])))
+            .replace('__WHITE__', escape_html(', '.join(sec['ip_whitelist']))))
+    return page
+
+
+# --------------------------------------------------------------------------- #
 # HTTP
 # --------------------------------------------------------------------------- #
 class Handler(BaseHTTPRequestHandler):
     server_version = 'fnos-qrcode/' + APPVERSION
     protocol_version = 'HTTP/1.1'
+
+    def version_string(self):
+        """只回应用名与版本号，不拼 `sys_version`。
+
+        标准库默认返回 `server_version + ' ' + sys_version`，而 sys_version 就是
+        `Python/3.x.y`，只覆盖 server_version 根本盖不住（渗透测试 F-21）。
+        """
+        return self.server_version
 
     # ---- 基础工具 ----
     def log_message(self, fmt, *args):
@@ -894,7 +1430,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(HTTPStatus.NOT_IMPLEMENTED,
                                 'Unsupported method (%r)' % self.command)
                 return
-            getattr(self, name)()
+            try:
+                getattr(self, name)()
+            except Exception as err:      # noqa: BLE001
+                # 兜底：任何未预期的异常都必须变成一个有内容的 500 响应，
+                # 绝不能让连接被静默关闭（那在浏览器里就是 ERR_EMPTY_RESPONSE，
+                # 用户看不到任何原因，排查成本极高）。
+                self.log_error('handler error: %r', err)
+                try:
+                    self._send(HTTPStatus.INTERNAL_SERVER_ERROR,
+                               'internal error', 'text/plain; charset=utf-8')
+                except Exception:
+                    self.close_connection = True
+                return
             self.wfile.flush()
         except (TimeoutError, socket.timeout) as err:
             self.log_error('Request timed out: %r', err)
@@ -958,6 +1506,14 @@ class Handler(BaseHTTPRequestHandler):
                     return value.strip()
         return ''
 
+    def _client_ip(self):
+        """请求来源 IP：TCP 对端地址。
+
+        刻意**不读** X-Forwarded-For / X-Real-IP —— 那两个头客户端可以任意伪造，
+        一旦信任就等于把 IP 限流与 IP 名单交给攻击者。反代场景请自行在代理层限流。
+        """
+        return self.client_address[0]
+
     def _current_user(self):
         if not self._auth_on():
             return 'anonymous'
@@ -997,11 +1553,160 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect('/login')
             return
 
+        if path == '/settings':
+            self._serve_settings()
+            return
+
         if path == '/qr':
             self._serve_qr()
             return
 
         self._serve_static(path)
+
+    def _serve_settings(self):
+        """设置页：读取 ?msg= &kind= 作为一次性提示（PRG 模式，避免刷新重复提交）。"""
+        if not self._auth_on():
+            self._redirect('/')          # 没开认证时没有账号可管，直接回首页
+            return
+        user = self._current_user()
+        if not user:
+            self._redirect('/login')
+            return
+        query = {}
+        if '?' in self.path:
+            query = parse_qs(self.path.split('?', 1)[1], keep_blank_values=True)
+        msg = (query.get('msg') or [''])[0]
+        kind = (query.get('kind') or ['ok'])[0]
+        page = render_settings_page(self.server, user, msg, kind,
+                                    self._cookie(SESSION_COOKIE))
+        self._send(HTTPStatus.OK, page, 'text/html; charset=utf-8',
+                   {'Cache-Control': 'no-store'})
+
+    def _redirect_settings(self, msg, kind='ok'):
+        self._redirect('/settings?' + urlencode({'msg': msg, 'kind': kind}))
+
+    def _do_settings_post(self):
+        if not self._auth_on():
+            self._redirect('/')
+            return
+        user = self._current_user()
+        if not user:
+            self._redirect('/login')
+            return
+
+        form = self._read_form()
+        if form is None:
+            self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                       'request body too large', 'text/plain; charset=utf-8')
+            return
+        if not self.server.csrf_guard.consume(form.get('csrf_token', '')):
+            self._redirect_settings('表单已过期，请刷新页面后重试', 'err')
+            return
+
+        settings = self.server.settings
+        sec = settings['login_security']
+        action = form.get('action', '')
+        msg, kind = '已保存', 'ok'
+
+        def text(name):
+            return str(form.get(name, '')).strip()
+
+        try:
+            if action == 'account_add':
+                new_user = text('user')
+                if not re.fullmatch(r'[A-Za-z0-9_.\-]{1,32}', new_user):
+                    raise ValueError('用户名需为 1~32 位字母、数字或 _ . -')
+                if find_account(settings, new_user):
+                    raise ValueError('账号「%s」已存在' % new_user)
+                if len(settings['accounts']) >= MAX_ACCOUNTS:
+                    raise ValueError('账号数量已达上限 %d 个' % MAX_ACCOUNTS)
+                raw_pass = str(form.get('pass', ''))
+                if len(raw_pass) < 6:
+                    raise ValueError('密码至少 6 位')
+                settings['accounts'].append({
+                    'user': new_user,
+                    'password': hash_password(raw_pass),
+                    'max_devices': normalize_int(form.get('max_devices'),
+                                                 sec['default_max_devices'], 1, 999),
+                    'unlimited_devices': bool(form.get('unlimited')),
+                })
+                msg = '已新增账号「%s」' % new_user
+
+            elif action == 'account_update':
+                acc = find_account(settings, text('user'))
+                if not acc:
+                    raise ValueError('账号不存在')
+                acc['max_devices'] = normalize_int(form.get('max_devices'),
+                                                   sec['default_max_devices'], 1, 999)
+                acc['unlimited_devices'] = bool(form.get('unlimited'))
+                raw_pass = str(form.get('pass', ''))
+                if raw_pass:
+                    if len(raw_pass) < 6:
+                        raise ValueError('密码至少 6 位')
+                    acc['password'] = hash_password(raw_pass)
+                    msg = '已更新账号「%s」并重置密码' % acc['user']
+                else:
+                    msg = '已更新账号「%s」' % acc['user']
+
+            elif action == 'account_delete':
+                target = text('user')
+                if target == user:
+                    raise ValueError('不能删除当前登录的账号')
+                before = len(settings['accounts'])
+                settings['accounts'] = [a for a in settings['accounts']
+                                        if a['user'] != target]
+                if len(settings['accounts']) == before:
+                    raise ValueError('账号不存在')
+                msg = '已删除账号「%s」' % target
+
+            elif action == 'security':
+                sec['max_fail'] = normalize_int(form.get('max_fail'), LOGIN_MAX_FAIL, 1, 999)
+                sec['lock_seconds'] = normalize_int(form.get('lock_seconds'),
+                                                    LOGIN_LOCK_SECONDS, 5, 86400)
+                sec['device_limit_enabled'] = bool(form.get('device_limit_enabled'))
+                sec['default_max_devices'] = normalize_int(form.get('default_max_devices'),
+                                                           DEFAULT_MAX_DEVICES, 1, 999)
+                msg = '已保存登录安全设置'
+
+            elif action == 'ipfilter':
+                black = normalize_ip_list(text('blacklist'))
+                white = normalize_ip_list(text('whitelist'))
+                bad = [x for x in black + white if not _valid_cidr(x)]
+                if bad:
+                    raise ValueError('IP/网段格式不正确：%s' % ', '.join(bad))
+                sec['ip_filter_enabled'] = bool(form.get('enabled'))
+                sec['ip_blacklist'] = black
+                sec['ip_whitelist'] = white
+                msg = '已保存 IP 名单'
+
+            elif action == 'revoke_device':
+                token = text('token')
+                if token and token != self._cookie(SESSION_COOKIE):
+                    self.server.session_store.revoke(token)
+                    msg = '已踢出该设备'
+                else:
+                    raise ValueError('不能踢出当前设备')
+
+            elif action == 'revoke_others':
+                keep = self._cookie(SESSION_COOKIE)
+                n = 0
+                for dev in self.server.session_store.devices(text('user') or user):
+                    if dev['token'] != keep:
+                        self.server.session_store.revoke(dev['token'])
+                        n += 1
+                msg = '已退出 %d 台其他设备' % n
+
+            else:
+                raise ValueError('未知操作')
+        except ValueError as err:
+            msg, kind = str(err), 'err'
+        else:
+            try:
+                save_settings(settings)
+            except OSError as err:
+                msg, kind = '保存失败（配置文件不可写）：%r' % (err,), 'err'
+
+        self._redirect_settings(msg, kind)
 
     def _serve_qr(self):
         """同源二维码代理：/qr?data=...&size=400x400"""
@@ -1024,9 +1729,16 @@ class Handler(BaseHTTPRequestHandler):
         if self._guard_request():
             return
         path = self._path()
-        if path != '/login':
-            self._send(HTTPStatus.NOT_FOUND, 'not found', 'text/plain; charset=utf-8')
+        if path == '/login':
+            self._do_login_post()
             return
+        if path == '/settings':
+            self._do_settings_post()
+            return
+        self._send(HTTPStatus.NOT_FOUND, 'not found', 'text/plain; charset=utf-8')
+
+    # ---- 登录 ----
+    def _do_login_post(self):
         if not self._auth_on():
             self._redirect('/')
             return
@@ -1042,9 +1754,14 @@ class Handler(BaseHTTPRequestHandler):
             self._fail('表单已过期，请重新输入', HTTPStatus.FORBIDDEN)
             return
 
-        ip = self.client_address[0]
+        ip = self._client_ip()
+
+        # IP 黑白名单：只作用于「提交登录」这一步，页面本身仍可浏览
+        if not self._ip_allowed(ip):
+            self._fail('该来源已被限制登录', HTTPStatus.FORBIDDEN)
+            return
+
         guard = self.server.login_guard
-        auth = self.server.settings['auth']
         username = form.get('username', '')
         password = form.get('password', '')
 
@@ -1053,9 +1770,12 @@ class Handler(BaseHTTPRequestHandler):
             self._fail_locked(locked)
             return
 
-        ok = (hmac.compare_digest(username, auth['username'])
-              and verify_password(password, auth['password']))
-        if not ok:
+        # 遍历账号做定时安全校验。注意 verify_login 内部已把两侧都 encode 成
+        # UTF-8 bytes —— hmac.compare_digest 对含非 ASCII 的 str 会抛 TypeError，
+        # 用户在登录框里输入中文就会命中，异常冒泡会让连接被静默关闭
+        # （浏览器表现为 ERR_EMPTY_RESPONSE）。
+        account = verify_login(self.server.settings, username, password)
+        if account is None:
             guard.fail(ip)
             locked = guard.blocked(ip)
             if locked > 0:
@@ -1065,10 +1785,47 @@ class Handler(BaseHTTPRequestHandler):
                 self._fail('用户名或密码不正确')
             return
 
+        # 每账号设备数限制：达到上限时**拒绝新登录**，
+        # 可在设置页踢掉旧设备、或在应用中心「设置」里调高上限/关掉限制。
+        if not self._device_slot_available(account):
+            sec = self.server.settings['login_security']
+            limit = int(account.get('max_devices') or sec.get('default_max_devices')
+                        or DEFAULT_MAX_DEVICES)
+            self._fail('账号「%s」已达到 %d 台设备上限，请先在其他设备退出登录'
+                       % (escape_html(account['user']), limit), HTTPStatus.FORBIDDEN)
+            return
+
         guard.reset(ip)
-        token = make_session(self.server.secret, auth['username'])
+        token = make_session(self.server.secret, account['user'])
+        self.server.session_store.register(token, account['user'])
         self._redirect('/', {'Set-Cookie': '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax'
                                           % (SESSION_COOKIE, token, SESSION_TTL)})
+
+    def _device_slot_available(self, account):
+        sec = self.server.settings['login_security']
+        if not sec.get('device_limit_enabled', True):
+            return True
+        if account.get('unlimited_devices'):
+            return True
+        store = self.server.session_store
+        store.prune()
+        limit = int(account.get('max_devices') or sec.get('default_max_devices')
+                    or DEFAULT_MAX_DEVICES)
+        return store.count(account['user']) < limit
+
+    def _ip_allowed(self, ip):
+        """登录提交的 IP 白/黑名单判定。回环地址始终放行，避免把自己关在外面。"""
+        sec = self.server.settings['login_security']
+        if not sec.get('ip_filter_enabled'):
+            return True
+        if is_loopback(ip):
+            return True
+        if ip_matches(ip, sec.get('ip_blacklist')):
+            return False
+        white = sec.get('ip_whitelist') or []
+        if white and not ip_matches(ip, white):
+            return False
+        return True
 
     def _render_login(self, block, status):
         page = (LOGIN_PAGE
@@ -1143,9 +1900,16 @@ class LoginGuard(object):
     （`锁定截止时间戳` 为 0 表示未锁定）。
     """
 
-    def __init__(self):
+    def __init__(self, settings=None):
         self._lock = threading.Lock()
         self._state = {}
+        self._settings = settings if isinstance(settings, dict) else {}
+
+    def _limits(self):
+        """(失败次数阈值, 锁定时长秒数)，每次调用都从设置里现取，改配置即时生效。"""
+        sec = self._settings.get('login_security') or {}
+        return (normalize_int(sec.get('max_fail'), LOGIN_MAX_FAIL, 1, 999),
+                normalize_int(sec.get('lock_seconds'), LOGIN_LOCK_SECONDS, 5, 86400))
 
     @staticmethod
     def trusted(ip):
@@ -1195,8 +1959,9 @@ class LoginGuard(object):
 
             count += 1
             last = now
-            if count >= LOGIN_MAX_FAIL and not self.trusted(ip):
-                until = now + LOGIN_LOCK_SECONDS
+            max_fail, lock_seconds = self._limits()
+            if count >= max_fail and not self.trusted(ip):
+                until = now + lock_seconds
 
             self._state[ip] = [count, last, until]
 
@@ -1263,24 +2028,51 @@ class QrProxy(object):
 
 
 class SessionStore(object):
-    """登出后作废对应会话（进程内吊销表）
+    """会话登记表（进程内）
 
-    会话本身仍是 HMAC 签名的无状态 Cookie，不写盘；这里只额外记住「已登出的 token」，
-    让 logout 之后复制走的 Cookie 也立即失效（报告 §5 的待测项：登出是否真正失效）。
-    已知取舍：吊销表在进程内存里，重启应用即清空；改密码会让所有会话失效（密钥派生自密码哈希）。
+    会话本身仍是 HMAC 签名的无状态 Cookie，不写盘；这里额外记录每个已签发会话
+    属于哪个账号、何时签发，用来：
+
+    1. 登出 / 被踢时立即失效（原「吊销表」的能力）；
+    2. 统计某个账号当前有多少台设备在线，落实「每个账号最多 N 台设备」。
+
+    有效性的判定仍是**签名 + 未被吊销**，登记表只负责计数 —— 这样应用重启后
+    已登录的设备不会被强制下线。代价是重启后设备计数从 0 重新开始
+    （与登录限流同样都是进程内状态，属已知取舍）。
     """
 
-    def __init__(self):
+    def __init__(self, ttl=SESSION_TTL):
         self._lock = threading.Lock()
-        self._revoked = {}
+        self._ttl = ttl
+        self._sessions = {}      # token -> {'user', 'issued', 'exp'}
+        self._revoked = {}       # token -> exp
+
+    def prune(self):
+        """清掉已过期的登记与吊销记录。"""
+        now = time.time()
+        with self._lock:
+            for token in [t for t, r in self._sessions.items() if r['exp'] <= now]:
+                self._sessions.pop(token, None)
+            for token in [t for t, exp in self._revoked.items() if now >= exp]:
+                self._revoked.pop(token, None)
+
+    def register(self, token, user):
+        now = time.time()
+        with self._lock:
+            self._sessions[token] = {'user': user, 'issued': now, 'exp': now + self._ttl}
+            self._revoked.pop(token, None)
+            if len(self._sessions) > 4096:      # 兜底清理，避免长期累积
+                for stale in [t for t, r in self._sessions.items() if r['exp'] <= now]:
+                    self._sessions.pop(stale, None)
 
     def revoke(self, token):
         if not token:
             return
         now = time.time()
         with self._lock:
-            self._revoked[token] = now + SESSION_TTL
-            if len(self._revoked) > 256:
+            self._sessions.pop(token, None)
+            self._revoked[token] = now + self._ttl
+            if len(self._revoked) > 512:
                 for stale in [k for k, exp in self._revoked.items() if now >= exp]:
                     self._revoked.pop(stale, None)
 
@@ -1296,6 +2088,18 @@ class SessionStore(object):
                 self._revoked.pop(token, None)
                 return False
             return True
+
+    def devices(self, user):
+        """该账号当前在线的设备，按签发时间升序（最早登录的排前面）。"""
+        now = time.time()
+        with self._lock:
+            items = [(t, r) for t, r in self._sessions.items()
+                     if r['user'] == user and r['exp'] > now]
+        items.sort(key=lambda kv: kv[1]['issued'])
+        return [{'token': t, 'issued': r['issued'], 'exp': r['exp']} for t, r in items]
+
+    def count(self, user):
+        return len(self.devices(user))
 
 
 class CsrfGuard(object):
@@ -1335,12 +2139,13 @@ class CsrfGuard(object):
 # 启动
 # --------------------------------------------------------------------------- #
 def build_server(port, settings, secret):
+    settings = coerce_settings(settings)     # 容忍不完整 / 旧版配置
     httpd = ThreadingHTTPServer(('0.0.0.0', port), Handler)
     httpd.daemon_threads = True
     httpd.settings = settings
     httpd.secret = secret
     httpd.ui_root = ui_dir()
-    httpd.login_guard = LoginGuard()
+    httpd.login_guard = LoginGuard(settings)
     httpd.csrf_guard = CsrfGuard()
     httpd.session_store = SessionStore()
     httpd.qr_proxy = QrProxy()
@@ -1359,7 +2164,14 @@ def port_in_use(port):
 def cmd_serve(port_override):
     settings = load_settings()
     port = port_override or settings['port']
-    secret = session_secret(settings)
+    had_key = isinstance(settings.get('session_key'), str) and len(settings['session_key']) >= 32
+    secret = session_secret(settings)       # 缺 session_key 时会补一个
+    if not had_key:
+        try:
+            save_settings(settings)         # 落盘，避免每次重启都把已登录设备踢下线
+        except OSError as err:
+            sys.stderr.write('[fnos-qrcode] 无法写入 session_key（重启后会话将失效）：%r\n'
+                             % (err,))
 
     httpd = build_server(port, settings, secret)
 
@@ -1373,8 +2185,8 @@ def cmd_serve(port_override):
             pass
 
     auth_state = '开启' if settings['auth']['enabled'] else '关闭'
-    sys.stderr.write('[fnos-qrcode] listening on 0.0.0.0:%d  ui=%s  auth=%s\n'
-                     % (port, httpd.ui_root, auth_state))
+    sys.stderr.write('[fnos-qrcode] listening on 0.0.0.0:%d  ui=%s  auth=%s  accounts=%d\n'
+                     % (port, httpd.ui_root, auth_state, len(settings['accounts'])))
     sys.stderr.flush()
     try:
         httpd.serve_forever(poll_interval=0.5)
@@ -1404,29 +2216,117 @@ def cmd_set(args):
             settings['auth']['enabled'] = enabled
             changed.append('auth=%s' % ('on' if enabled else 'off'))
 
-    if args.user:
-        user = str(args.user).strip()
-        if user and user != settings['auth']['username']:
-            settings['auth']['username'] = user
-            changed.append('user=%s' % user)
-
+    # ---- 账号 ----
+    new_user = str(args.user or '').strip()
+    raw_pass = None
     if args.password:
-        settings['auth']['password'] = hash_password(str(args.password))
-        changed.append('password=已更新')
+        raw_pass = str(args.password)
     elif args.pass_stdin:
-        # 从标准输入读密码，避免密码出现在进程命令行（ps 可见）
-        raw = sys.stdin.read().strip()
-        if raw:
-            settings['auth']['password'] = hash_password(raw)
-            changed.append('password=已更新')
+        raw_pass = sys.stdin.read().strip() or None
 
-    # 开启认证但没有可用密码时拒绝写入，避免把应用锁死或放空
-    if settings['auth']['enabled']:
-        if not settings['auth']['username']:
-            sys.stderr.write('错误：开启用户认证时必须设置用户名\n')
+    if new_user or raw_pass:
+        target = find_account(settings, new_user) if new_user else None
+
+        if target is None and new_user:
+            if len(settings['accounts']) == 1:
+                # 单账号场景沿用旧语义：「改用户名」= 重命名。
+                # 但**必须同时给了新密码**才动 —— 否则「打开应用中心设置对话框直接保存」
+                # 就会把用户的账号名改成表单默认值（admin），属于误伤。
+                if raw_pass:
+                    settings['accounts'][0]['user'] = new_user
+                    target = settings['accounts'][0]
+                    changed.append('user=%s' % new_user)
+                else:
+                    sys.stderr.write('提示：账号「%s」不存在且未提供新密码，已忽略用户名变更\n'
+                                     % new_user)
+            elif raw_pass:
+                if len(settings['accounts']) >= MAX_ACCOUNTS:
+                    sys.stderr.write('错误：账号数量已达上限 %d 个\n' % MAX_ACCOUNTS)
+                    return 1
+                target = {'user': new_user, 'password': None,
+                          'max_devices': settings['login_security']['default_max_devices'],
+                          'unlimited_devices': False}
+                settings['accounts'].append(target)
+                changed.append('account+=%s' % new_user)
+            else:
+                # 关键：没有密码就不允许创建账号，避免留下一个无密码的账号
+                sys.stderr.write('提示：账号「%s」不存在且未提供新密码，已忽略\n' % new_user)
+        elif target is None and raw_pass:
+            if settings['accounts']:
+                target = settings['accounts'][0]
+            else:
+                sys.stderr.write('错误：请用 --user 指定要设置密码的账号\n')
+                return 1
+
+        if target is not None and raw_pass:
+            if len(raw_pass) < 6:
+                sys.stderr.write('错误：登录密码至少 6 位\n')
+                return 1
+            target['password'] = hash_password(raw_pass)
+            changed.append('password(%s)=已更新' % target['user'])
+
+    # ---- 登录安全 ----
+    sec = settings['login_security']
+
+    if args.max_fail is not None:
+        val = normalize_int(args.max_fail, None, 1, 999)
+        if val is None:
+            sys.stderr.write('错误：失败次数必须是 1~999 的整数，收到 %r\n' % args.max_fail)
             return 1
-        if not isinstance(settings['auth']['password'], dict):
-            sys.stderr.write('错误：开启用户认证时必须设置登录密码（至少 6 位）\n')
+        if val != sec['max_fail']:
+            sec['max_fail'] = val
+            changed.append('max_fail=%d' % val)
+
+    if args.lock_seconds is not None:
+        val = normalize_int(args.lock_seconds, None, 5, 86400)
+        if val is None:
+            sys.stderr.write('错误：锁定时长必须是 5~86400 秒，收到 %r\n' % args.lock_seconds)
+            return 1
+        if val != sec['lock_seconds']:
+            sec['lock_seconds'] = val
+            changed.append('lock_seconds=%d' % val)
+
+    if args.device_limit is not None:
+        on = str(args.device_limit).strip().lower() in ('on', 'true', '1', 'yes',
+                                                       'enable', 'enabled')
+        if on != sec['device_limit_enabled']:
+            sec['device_limit_enabled'] = on
+            changed.append('device_limit=%s' % ('on' if on else 'off'))
+
+    if args.max_devices is not None:
+        val = normalize_int(args.max_devices, None, 1, 999)
+        if val is None:
+            sys.stderr.write('错误：设备上限必须是 1~999 的整数，收到 %r\n' % args.max_devices)
+            return 1
+        if val != sec['default_max_devices']:
+            sec['default_max_devices'] = val
+            changed.append('max_devices=%d' % val)
+
+    if args.ip_filter is not None:
+        on = str(args.ip_filter).strip().lower() in ('on', 'true', '1', 'yes',
+                                                     'enable', 'enabled')
+        if on != sec['ip_filter_enabled']:
+            sec['ip_filter_enabled'] = on
+            changed.append('ip_filter=%s' % ('on' if on else 'off'))
+
+    for attr, label in (('ip_blacklist', '黑名单'), ('ip_whitelist', '白名单')):
+        raw = getattr(args, attr)
+        if raw is None:
+            continue
+        items = normalize_ip_list(raw)
+        bad = [x for x in items if not _valid_cidr(x)]
+        if bad:
+            sys.stderr.write('错误：IP %s格式不正确：%s\n' % (label, ', '.join(bad)))
+            return 1
+        if items != sec[attr]:
+            sec[attr] = items
+            changed.append('%s=%d 条' % (attr, len(items)))
+
+    # 开启认证但没有任何可用账号时拒绝写入，避免把应用锁死或放空
+    if settings['auth']['enabled']:
+        usable = [a for a in settings['accounts'] if isinstance(a.get('password'), dict)]
+        if not usable:
+            sys.stderr.write('错误：开启用户认证时必须至少有一个设置了密码的账号\n')
             return 1
 
     if not changed:
@@ -1445,10 +2345,24 @@ def main(argv):
     parser.add_argument('--check', action='store_true', help='探测当前端口是否在监听')
     parser.add_argument('--set', action='store_true', help='写入配置')
     parser.add_argument('--auth', default=None, help='on / off')
-    parser.add_argument('--user', default='', help='登录用户名')
+    parser.add_argument('--user', default='', help='登录用户名（不存在则创建；仅有一个账号时表示重命名）')
     parser.add_argument('--pass', dest='password', default='', help='登录密码')
     parser.add_argument('--pass-stdin', dest='pass_stdin', action='store_true',
                         help='从标准输入读取登录密码（供生命周期脚本使用，避免密码出现在 ps 里）')
+    parser.add_argument('--max-fail', dest='max_fail', default=None,
+                        help='连续登录失败多少次后锁定（1~999）')
+    parser.add_argument('--lock-seconds', dest='lock_seconds', default=None,
+                        help='锁定时长秒数（5~86400）')
+    parser.add_argument('--device-limit', dest='device_limit', default=None,
+                        help='on / off：是否限制每个账号的在线设备数')
+    parser.add_argument('--max-devices', dest='max_devices', default=None,
+                        help='新账号默认的设备数上限（1~999）')
+    parser.add_argument('--ip-filter', dest='ip_filter', default=None,
+                        help='on / off：是否启用登录 IP 黑白名单')
+    parser.add_argument('--ip-blacklist', dest='ip_blacklist', default=None,
+                        help='IP 黑名单，逗号分隔，支持 10.0.0.0/8 这样的网段')
+    parser.add_argument('--ip-whitelist', dest='ip_whitelist', default=None,
+                        help='IP 白名单，非空时仅这些来源可提交登录')
     args = parser.parse_args(argv)
 
     if args.print_port:
@@ -1999,6 +2913,42 @@ if [ "$AUTH" = "on" ] && [ -n "$AUTH_PASS" ] && [ "${#AUTH_PASS}" -lt 6 ]; then
   fail "登录密码至少需要 6 位"
 fi
 
+# ---------- 1.5 登录安全与 IP 名单（留空 / keep 表示保持原值） ----------
+SEC_ARGS=()
+
+num_arg() {   # $1=值 $2=最小 $3=最大 $4=参数名 $5=中文名
+  local v
+  v="$(printf '%s' "$1" | tr -d '[:space:]')"
+  [ -z "$v" ] && return 0
+  case "$v" in
+    *[!0-9]*) fail "$5 必须是数字，收到：$1" ;;
+  esac
+  if [ "$v" -lt "$2" ] || [ "$v" -gt "$3" ]; then
+    fail "$5 必须在 $2~$3 之间，收到：$1"
+  fi
+  SEC_ARGS+=("$4" "$v")
+}
+
+onoff() {     # $1=值 $2=参数名
+  case "$(printf '%s' "$1" | tr 'A-Z' 'a-z')" in
+    on|true|1|yes|enable|enabled) SEC_ARGS+=("$2" "on") ;;
+    off|false|0|no|disable|disabled) SEC_ARGS+=("$2" "off") ;;
+    *) return 0 ;;
+  esac
+}
+
+num_arg "${wizard_max_fail:-}"     1 999   --max-fail     "连续失败次数"
+num_arg "${wizard_lock_seconds:-}" 5 86400 --lock-seconds "锁定时长"
+num_arg "${wizard_max_devices:-}"  1 999   --max-devices  "设备数上限"
+onoff   "${wizard_device_limit:-}" --device-limit
+onoff   "${wizard_ip_filter:-}"    --ip-filter
+
+[ -n "${wizard_ip_blacklist:-}" ] && SEC_ARGS+=(--ip-blacklist "$wizard_ip_blacklist")
+[ -n "${wizard_ip_whitelist:-}" ] && SEC_ARGS+=(--ip-whitelist "$wizard_ip_whitelist")
+
+# bash 3/4 兼容：空数组在 set -u 下直接展开会报错，统一用这个写法
+EXTRA=(${SEC_ARGS[@]+"${SEC_ARGS[@]}"})
+
 # ---------- 2. 写入 ----------
 PY="$(find_python)" || fail "未找到可用的 Python3（需要 3.6 及以上）"
 
@@ -2008,9 +2958,9 @@ ARGS=(--set)
 [ -n "$AUTH_USER" ] && ARGS+=(--user "$AUTH_USER")
 
 if [ -n "$AUTH_PASS" ]; then
-  printf '%s' "$AUTH_PASS" | "$PY" "$APP_PY" "${ARGS[@]}" --pass-stdin >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
+  printf '%s' "$AUTH_PASS" | "$PY" "$APP_PY" "${ARGS[@]}" ${EXTRA[@]+"${EXTRA[@]}"} --pass-stdin >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
 else
-  "$PY" "$APP_PY" "${ARGS[@]}" >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
+  "$PY" "$APP_PY" "${ARGS[@]}" ${EXTRA[@]+"${EXTRA[@]}"} >/dev/null || fail "写入配置失败（若开启认证，请确认已设置过登录密码）"
 fi
 
 if [ -f "$SETTINGS" ]; then
@@ -2039,7 +2989,7 @@ else
   log "应用当前未运行，配置将在下次启动时生效"
 fi
 
-log "设置已保存：端口=${PORT:-未变} 用户认证=${AUTH:-未变}"
+log "设置已保存：端口=${PORT:-未变} 用户认证=${AUTH:-未变} 高级项参数 ${#EXTRA[@]} 个"
 exit 0
 ```
 
@@ -2747,9 +3697,9 @@ fnos-qrcode.fpk                    ← gzip 压缩的 tar
 
 | 属性 | 值 |
 | --- | --- |
-| 大小 | `85625` B |
-| MD5 | `a51b615cf752cb4a3fdc4a1d2f0e765d` |
-| SHA-256 | `ce1b11442dab3be3a22f48db18fd4eed74283cf9244a144ff8df178bc904c19f` |
+| 大小 | `97968` B |
+| MD5 | `1f158c3f36f64b6b39b11857295d33cb` |
+| SHA-256 | `a2274896584ec80c9580bebe6c8904eef15762edbb4dc816c75c3a8eecb508e0` |
 
 ### 校验脚本
 
@@ -2907,6 +3857,30 @@ sudo appcenter-cli start fnos-qrcode
 锁定相关 13 条用例全部通过；全量 86 条通过 85，唯一失败项为 `F-21`
 （`Server` 头仍带 `Python/3.x.y`，属 v1.0.3 的 F-06 修复不完整，与本轮改动无关）。
 
+**v1.1.0（多账号 + 可配置登录安全）的验证**（`importlib` 直接加载发布包里的真实 `app.py`，
+本地起 4 个实例；全量 **108 条用例全部通过**）
+
+| 场景 | 期望 | 结果 |
+| --- | --- | --- |
+| 多账号 | 两个账号各自可登录；不存在账号 401；密码错 401 且提示统一 | ✅ |
+| 设备上限 | 上限 2 时第 3 台设备登录被拒 | ✅ `403` 且提示「已达到设备上限」 |
+| 多设备令牌 | 同账号同秒登录两台设备，token 不同、计数为 2 | ✅（回归第 12 条修复） |
+| 不限设备 | 标记不限设备的账号连续登录 3 次 | ✅ 全部 `302` |
+| 设置页鉴权 | 未登录访问 `/settings` | ✅ `302 → /login` |
+| 设置页渲染 | 账号列表 / 在线设备 / 各表单齐全 | ✅ |
+| 新增账号 | 设置页新增后立即可登录 | ✅ |
+| 防自锁 | 删除当前登录账号 | ✅ 被拒，重定向带错误提示 |
+| 设置页 CSRF | 缺令牌提交 | ✅ 配置不变并报错 |
+| 失败次数可配置 | 改为 2 后第 2 次失败 | ✅ `429` |
+| 锁定时长可配置 | 改为 9 秒 | ✅ `data-sec="9"` |
+| IP 黑名单 | 命中来源 / 名单外来源 | ✅ `403`（含提示）/ `302` |
+| IP 白名单 | 名单外 / 网段内 | ✅ `403` / `302` |
+| 回环豁免 | 白名单不含回环，从回环登录 | ✅ `302`（防自锁） |
+| 配置迁移 | v1.0.x `auth.username/password` | ✅ 迁移为 `accounts[0]` 并补全默认值 |
+| 设置页转义 | 账号名含 `<script>` | ✅ 被转义，无存储型 XSS |
+| 中文输入 | 中文 / emoji 用户名 | ✅ 正常 401，不再空响应 |
+| `Server` 头 | 重写 `version_string()` | ✅ `fnos-qrcode/1.1.0`，无 `Python/3.x.y` |
+
 ---
 
 ## 8. 实现要点与踩坑记录
@@ -2932,17 +3906,39 @@ sudo appcenter-cli start fnos-qrcode
 ### 8.2 认证实现
 
 - 密码以 `pbkdf2_sha256`（20 万次迭代 + 16 字节随机盐）存哈希，**明文不落盘、不进日志**
+- **多账号**（v1.1.0）：账号存在 `accounts` 数组里（上限 `MAX_ACCOUNTS=10`），
+  每项含 `user / password / max_devices / unlimited_devices`。
+  登录时遍历账号做**定时安全比较**；用户名不存在时也会跑一次 PBKDF2（拿首个账号当诱饵），
+  避免从响应时间判断「某账号是否存在」。**每个请求最多一次哈希**，账号变多也不拖慢登录
+- **配置迁移**：`coerce_settings()` 同时被 `load_settings()` 与 `build_server()` 使用，
+  v1.0.x 的 `auth.username / auth.password` 会自动迁移成 `accounts[0]`，并补全默认值；
+  手工写了一半的 `settings.json` 也不会让服务起不来
 - 登录成功下发 HMAC-SHA256 签名 Cookie（`qr_session`，7 天有效），带 `HttpOnly` + `SameSite=Lax`
-- 会话密钥由**密码哈希派生**，不额外落盘 —— 这样服务进程完全不需要写配置目录，
-  避开「安装脚本以 root 运行、应用以 package 运行」的权限不一致问题；副作用是改密码会让已登录会话失效（符合预期）
-- 登出会把该 token 记进进程内吊销表（`SessionStore`），复制走的 Cookie 立刻失效
+- 会话密钥存在 `settings.json` 的 `session_key`（首次启动生成并落盘）。
+  早期版本由密码哈希派生，结果是「一改密码 / 一加账号，全员被踢下线」——
+  这会直接抵消「每账号最多 N 台设备」的意义，因此 v1.1.0 改成持久化密钥；
+  想强制所有人重新登录，删掉该字段再重启即可
+- **会话登记表**（`SessionStore`，v1.1.0 起同时负责吊销与设备计数）：
+  记录 `token -> {user, issued, exp}`，用来统计每个账号的在线设备数。
+  有效性判定仍是「签名 + 未被吊销」，所以**重启不会把已登录设备强制下线**，
+  代价是设备计数重启后从 0 重新累计
+- **每账号设备数限制**（v1.1.0）：达到上限时**拒绝新登录**（403），不挤掉旧设备；
+  标了 `unlimited_devices` 的账号不受限。逃生通道是应用中心「设置」（无需登录）
+  与应用内「设置」页的踢设备
+- 登出会把该 token 记进吊销表，复制走的 Cookie 立刻失效
 - 登录表单带**一次性 CSRF 令牌**（`CsrfGuard`，30 分钟有效，提交即作废），
-  服务端保存、不引入预认证 Cookie，登录页依然不下发任何 Cookie
+  服务端保存、不引入预认证 Cookie，登录页依然不下发任何 Cookie；
+  应用内设置页的**每个表单各自领一个令牌**（否则一次性语义会让同一页面只能提交一次）
 - 登录失败限流（`LoginGuard`）：计数键是**来源 IP**（不区分用户名），
-  **120 秒内连续**失败 5 次即锁定该来源 **120 秒**
+  在 `lock_seconds` 内**连续**失败 `max_fail` 次即锁定该来源
   （时长 60→120 秒是 v1.0.2；v1.0.3 一度改成 (IP, 用户名) 并豁免私网；
-  **v1.0.4 改回纯来源 IP 并取消内网豁免**，同时新增 120 秒连续失败窗口）；
+  **v1.0.4 改回纯来源 IP 并取消内网豁免**，同时新增连续失败窗口；
+  **v1.1.0 把次数与时长改为读设置**，`_limits()` 每次调用现取，改配置即时生效）；
   锁定提示里的秒数由页面内联脚本按秒递减，归零后自动隐藏提示并恢复登录按钮
+- **登录 IP 黑白名单**（v1.1.0）：`_ip_allowed()` 只挂在 `POST /login` 上，
+  页面浏览不受影响；回环地址始终放行；支持单 IP 与 CIDR（`ipaddress` 标准库）。
+  判定用的是 `self.client_address[0]`（封装在 `_client_ip()` 里，测试可替换），
+  **不读 `X-Forwarded-For`** —— 那种头可伪造
 - 错误提示统一为「用户名或密码不正确」，不透露剩余可尝试次数
 - `LOGIN_LOCK_TRUSTED_PREFIXES` 默认为**空元组 —— 任何来源都不豁免**（含回环与私网）；
   确实需要放行时（例如前置反向代理）才把前缀加进去
@@ -3115,6 +4111,49 @@ sudo appcenter-cli start fnos-qrcode
    验证：86 条用例通过 85（唯一失败项是 `Server` 头仍带 `Python/3.x.y`，属 F-06 未修完，与本次改动无关）。
    锁定相关 13 条全部通过，含「换用户名不洗掉计数」「回环来源同样锁定」「连续窗口断裂清零」。
    实现说明见 `workbuddy开发项目测试/pentest-12990/登录锁定逻辑-实现说明.html`。
+
+11. **登录框输入中文 → `ERR_EMPTY_RESPONSE`**（v1.1.0 修复）
+
+   **现象**：在 `http://192.168.x.x:12990/login` 的用户名框里输入中文后提交，
+   页面变成「该网页无法正常运作 / 192.168.x.x 未发送任何数据 / ERR_EMPTY_RESPONSE」。
+
+   **定位**：用原始 socket 复现，中文 / emoji 用户名得到的是**0 字节响应**（连接被直接关闭），
+   ASCII 用户名正常 401。服务端日志给出确切位置：
+
+   ```
+   File "app.py", line 581, in do_POST
+       ok = (hmac.compare_digest(username, auth['username'])
+   TypeError: comparing strings with non-ASCII characters is not supported
+   ```
+
+   **根因**：`hmac.compare_digest()` 对**含非 ASCII 的 `str`** 会直接抛 `TypeError`
+   （它只接受 ASCII-only 的 str 或 bytes）。异常从 `do_POST` 冒泡到 `handle_one_request`，
+   `socketserver` 打印 traceback 后**关闭连接、一个字节都不写** —— 浏览器只能显示 ERR_EMPTY_RESPONSE。
+   注意 `and` 短路：只有**用户名**非 ASCII 才会触发，纯中文密码不会（已验证）。
+
+   **修复**（三层）：
+
+   - `verify_login()` 里两侧都先 `encode('utf-8')` 再比较；
+   - `verify_password()` 同样改成按 bytes 比较（防御性，防止配置里出现异常字符）；
+   - `handle_one_request()` 把 `getattr(self, name)()` 包进 try/except，异常时回 **500** ——
+     这条是兜底：**任何**未预期异常都不该表现为「空响应」，否则排查成本极高。
+
+   回归用例 F-26/F-27/F-28 分别覆盖中文用户名、emoji 用户名、中文密码。
+
+   > 同类隐患已排查：`parse_session()` 的比较在 try 内（安全）；
+   > `verify_password()` 已加固。**教训：任何用户可控字符串做定时安全比较前必须先 encode。**
+
+12. **同一账号在同一秒登录两台设备会拿到完全相同的 token**（v1.1.0 修复）
+
+   做「每账号最多 N 台设备」时暴露出来的旧问题：`make_session()` 的 payload 是
+   `{'u': user, 'exp': int(time.time()) + SESSION_TTL}` —— **没有随机量**，
+   于是同一账号在同一秒内签发的 token 完全一致。后果有两条：
+
+   - 会话登记表被同一个 key 覆盖，「在线设备数」永远算不对（本轮冒烟测试就是这么撞出来的）；
+   - 登出一台设备会把同秒登录的另一台**一起**登出。
+
+   修复：payload 里加一个 `secrets.token_hex(8)` 的随机 `n`。
+   回归用例 V-04 断言同账号两设备的 token 不相同且登记计数为 2。
 
    **实测**：修复前 zip 下载超时（落到 `window.open` 兜底）；修复后同一台机器
    4 张图出图 + **打包下载成功 3374 B**，无失败请求。
