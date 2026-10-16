@@ -42,7 +42,7 @@ from urllib.parse import parse_qs, unquote_plus, urlencode
 from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.0.3'
+APPVERSION = '1.0.4'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
@@ -58,14 +58,15 @@ QR_MAX_DATA = 1024                   # 单个二维码内容长度上限
 QR_MAX_BYTES = 2 * 1024 * 1024       # 上游图片体积上限
 QR_CACHE_MAX = 512                   # 内存里缓存的二维码张数
 
-# 失败计数按「来源 + 用户名」绑定：攻击者用伪造用户名刷失败，不会锁死别人的登录入口。
-# 下面这些来源被视为可信网络，不做锁定（家用 NAS 场景避免把自己锁在门外）。
-# 需要彻底关闭该豁免时，把元组清空即可：LOGIN_LOCK_TRUSTED_PREFIXES = ()
-LOGIN_LOCK_TRUSTED_PREFIXES = (
-    '127.', '::1', '10.', '192.168.', '172.16.', '172.17.', '172.18.', '172.19.',
-    '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.',
-    '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', 'fe80:', 'fc', 'fd',
-)
+# 失败计数窗口：**连续**失败之间只要不超过这个秒数就继续累计，超过则计数清零。
+# 与 LOGIN_LOCK_SECONDS 合起来就是「120 秒内连续失败 5 次 → 锁定 120 秒」。
+LOGIN_FAIL_WINDOW = 120
+
+# 锁定粒度是**来源 IP**，不区分用户名：同一 IP 的失败次数统一累计。
+# 默认**不豁免任何来源** —— 回环与私网同样受限流保护，局域网部署下也真实生效。
+# 若某个部署确实需要放行特定网段（例如前置反向代理把所有人收敛成一个 IP），
+# 把前缀加进这个元组即可，如 ('127.', '::1', '192.168.')；留空表示全部受限。
+LOGIN_LOCK_TRUSTED_PREFIXES = ()
 
 # 前端是单文件页面（内联 script/style），并会从 jsDelivr 取 JSZip、
 # 从 api.2dcode.biz 取二维码图片，所以必须放行这三处，其余一律 'self'。
@@ -510,9 +511,8 @@ class Handler(BaseHTTPRequestHandler):
             if self._current_user():
                 self._redirect('/')
                 return
-            # 锁定是按「来源 + 用户名」记账的，刷新时还不知道用户名，
-            # 所以这里展示的是该来源下某个账户的剩余时间（取最大的那个）。
-            locked = self.server.login_guard.blocked_any(self.client_address[0])
+            # 锁定按来源 IP 记账，刷新登录页时可直接取到该来源的剩余锁定时间。
+            locked = self.server.login_guard.blocked(self.client_address[0])
             block = LOGIN_LOCK_NOTICE.replace('__SEC__', str(locked)) if locked > 0 else ''
             self._render_login(block, HTTPStatus.OK)
             return
@@ -573,7 +573,7 @@ class Handler(BaseHTTPRequestHandler):
         username = form.get('username', '')
         password = form.get('password', '')
 
-        locked = guard.blocked(ip, username)
+        locked = guard.blocked(ip)
         if locked > 0:
             self._fail_locked(locked)
             return
@@ -581,8 +581,8 @@ class Handler(BaseHTTPRequestHandler):
         ok = (hmac.compare_digest(username, auth['username'])
               and verify_password(password, auth['password']))
         if not ok:
-            guard.fail(ip, username)
-            locked = guard.blocked(ip, username)
+            guard.fail(ip)
+            locked = guard.blocked(ip)
             if locked > 0:
                 self._fail_locked(locked)
             else:
@@ -590,7 +590,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._fail('用户名或密码不正确')
             return
 
-        guard.reset(ip, username)
+        guard.reset(ip)
         token = make_session(self.server.secret, auth['username'])
         self._redirect('/', {'Set-Cookie': '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax'
                                           % (SESSION_COOKIE, token, SESSION_TTL)})
@@ -650,19 +650,22 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class LoginGuard(object):
-    """登录失败限流（进程内）
+    """登录失败限流（进程内，按**来源 IP** 记账）
 
-    计数键是 **(来源 IP, 用户名)**，不是单纯的 IP：
+    规则：同一来源 IP 在 `LOGIN_FAIL_WINDOW` 秒内**连续**失败
+    `LOGIN_MAX_FAIL` 次 → 锁定该 IP `LOGIN_LOCK_SECONDS` 秒。
 
-    - 攻击者用任意伪造用户名连续失败，只会消耗「自己那个用户名」的配额，
-      不会把管理员真正在用的用户名锁死（修的是报告里的 A-01：锁定型 DoS）；
-    - 只要有一个**正确**的用户名 + 错误密码的组合被反复尝试，那个用户名仍会被锁，
-      这是限流应有的行为；但由于锁定粒度细到具体账户，不再「一人被刷、全员被挡」；
+    - 计数键就是来源 IP，**不区分用户名**：同一 IP 换个用户名再试并不会"洗掉"计数；
     - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口
       （否则「等一会儿再试」等于给自己续命，倒计时看起来永远是同一个数）；
-    - 锁定到期后计数清零，重新给满额机会；
-    - `LOGIN_LOCK_TRUSTED_PREFIXES` 里的来源（回环 / 私网 / 链路本地）不做锁定，
-      避免家用 NAS 场景把管理员自己锁在门外。
+    - 「连续」的判定：两次失败之间只要超过 `LOGIN_FAIL_WINDOW` 秒没有新失败，
+      计数就清零重来，避免隔几天累计 5 次被误锁；
+    - 锁定到期后计数与锁定一并清零，重新给满额机会；
+    - 默认**不豁免任何来源**（含回环与私网）。需要放行特定网段时，
+      往 `LOGIN_LOCK_TRUSTED_PREFIXES` 里加前缀即可。
+
+    状态结构：`_state[ip] = [失败次数, 最近一次失败时间戳, 锁定截止时间戳]`
+    （`锁定截止时间戳` 为 0 表示未锁定）。
     """
 
     def __init__(self):
@@ -671,64 +674,67 @@ class LoginGuard(object):
 
     @staticmethod
     def trusted(ip):
-        """来源是否属于「不锁定」的可信网络。"""
-        return bool(ip) and (ip == '::1' or ip.startswith(LOGIN_LOCK_TRUSTED_PREFIXES))
+        """来源是否在放行名单里。名单默认为空 → 任何来源都受限流保护。"""
+        return bool(ip) and ip.startswith(LOGIN_LOCK_TRUSTED_PREFIXES)
 
-    def key(self, ip, username):
-        return (ip, username or '')
+    def info(self, ip):
+        """返回 (剩余锁定秒数, 当前连续失败次数)。
 
-    def info(self, ip, username):
-        """返回 (剩余锁定秒数, 该用户名已累计失败次数)；锁定已过期时顺带清零。"""
-        key = self.key(ip, username)
+        锁定已到期、或失败计数已超出连续窗口时，顺带把该来源整条清除。
+        """
         with self._lock:
-            count, until = self._state.get(key, (0, 0))
+            rec = self._state.get(ip)
+            if not rec:
+                return 0, 0
+            count, last, until = rec
             now = time.time()
-            if until and now >= until:
-                self._state.pop(key, None)
+            if until and now >= until:                      # 锁定到期
+                self._state.pop(ip, None)
+                return 0, 0
+            if not until and last and now - last > LOGIN_FAIL_WINDOW:   # 连续窗口断裂
+                self._state.pop(ip, None)
                 return 0, 0
             remain = int(until - now + 0.5) if until else 0
             return (remain if remain > 0 else 0), count
 
-    def blocked(self, ip, username):
-        return self.info(ip, username)[0]
+    def blocked(self, ip):
+        """该来源剩余锁定秒数（0 表示未锁定）。"""
+        return self.info(ip)[0]
 
-    def blocked_any(self, ip):
-        """该来源下**任意**账户还剩多少秒锁定（用于登录页首次打开时的提示）。"""
-        now = time.time()
-        best = 0
+    def fail(self, ip):
+        """记一次失败，必要时进入锁定。"""
         with self._lock:
-            for (key_ip, _user), (_count, until) in self._state.items():
-                if key_ip != ip or not until:
-                    continue
-                remain = int(until - now + 0.5)
-                if remain > best:
-                    best = remain
-        return best
-
-    def fail(self, ip, username):
-        """记一次失败。可信来源只计数、不锁定。"""
-        key = self.key(ip, username)
-        with self._lock:
-            count, until = self._state.get(key, (0, 0))
             now = time.time()
+            rec = self._state.get(ip)
+            count, last, until = rec if rec else (0, 0, 0)
+
             if until and now < until:
-                # 已在锁定期：只累加计数，保持原锁定窗口
-                self._state[key] = (count + 1, until)
+                # 已在锁定期：只累加计数，保持原锁定窗口不变
+                self._state[ip] = [count + 1, last, until]
                 return
+
+            if until and now >= until:      # 上一轮锁定已到期 → 重新开始
+                count, last, until = 0, 0, 0
+            if last and now - last > LOGIN_FAIL_WINDOW:
+                count, last = 0, 0          # 连续窗口断裂 → 计数清零
+
             count += 1
+            last = now
             if count >= LOGIN_MAX_FAIL and not self.trusted(ip):
                 until = now + LOGIN_LOCK_SECONDS
-            else:
-                until = 0
-            self._state[key] = (count, until)
-            if len(self._state) > 1024:          # 轻量清理，避免长期累积
-                for stale in [k for k, v in self._state.items()
-                              if not v[1] or now >= v[1]]:
-                    self._state.pop(stale, None)
 
-    def reset(self, ip, username):
+            self._state[ip] = [count, last, until]
+
+            if len(self._state) > 1024:     # 轻量清理，避免长期累积
+                stale = [k for k, v in self._state.items()
+                         if (v[2] and now >= v[2])
+                         or (not v[2] and (not v[1] or now - v[1] > LOGIN_FAIL_WINDOW))]
+                for k in stale:
+                    self._state.pop(k, None)
+
+    def reset(self, ip):
         with self._lock:
-            self._state.pop(self.key(ip, username), None)
+            self._state.pop(ip, None)
 
 
 class QrProxy(object):

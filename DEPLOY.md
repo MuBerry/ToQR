@@ -126,14 +126,14 @@ FPK 工程共 21 个源文件，按职责归类：
 
 | # | 文件 | 行数 | 大小 | 职责 |
 | --- | --- | --- | --- | --- |
-| 1 | `manifest` | 15 | 3191 B | 应用清单：appname/版本/入口/端口/平台 |
+| 1 | `manifest` | 15 | 3801 B | 应用清单：appname/版本/入口/端口/平台 |
 | 2 | `app/ui/config` | 16 | 321 B | 桌面入口 JSON，端口写 `${wizard_port}` |
 | 3 | `config/privilege` | 7 | 107 B | 运行身份：`run-as: package` |
 | 4 | `config/resource` | 5 | 43 B | 资源声明（数据共享为空） |
 | 5 | `wizard/install` | 71 | 2205 B | 安装向导：端口 + 认证三项 |
 | 6 | `wizard/config` | 71 | 2060 B | 设置向导（装后调整，同名字段） |
 | 7 | `wizard/uninstall` | 24 | 733 B | 卸载向导：保留 / 删除配置 |
-| 8 | `app/server/app.py` | 992 | 40368 B | 服务端：静态托管 + 端口配置 + 可选认证 |
+| 8 | `app/server/app.py` | 998 | 40551 B | 服务端：静态托管 + 端口配置 + 可选认证 |
 | 9 | `cmd/main` | 183 | 4816 B | start / stop / status 入口 |
 | 10 | `cmd/install_init` | 46 | 1601 B | 安装前：Python、端口、密码校验 |
 | 11 | `cmd/install_callback` | 147 | 5110 B | 安装后：落盘配置 + 修权限 |
@@ -165,10 +165,10 @@ FPK 工程共 21 个源文件，按职责归类：
 
 ```ini
 appname               = fnos-qrcode
-version               = 1.0.3
+version               = 1.0.4
 display_name          = 二维码批量生成器
 desc                  = 简单高效的二维码批量生成工具。在页面里每行输入一个内容，即可一次性生成对应的二维码，支持文本与网址。<br /><strong>主要能力</strong><br />· 批量生成：一行一条，一次最多 200 个<br />· 多条导入：支持 <code>.txt</code> / <code>.csv</code> / <code>.tsv</code>，也可直接把文件拖到输入框<br />· 实时预览：生成后网格预览，可单张下载或一键打包成 zip<br />· 最近记录：本地保存最近几次生成，点击即可重新载入<br /><strong>关于端口与认证</strong><br />· 服务端口安装时填写，默认 <code>10001</code>，装好后可在应用中心「设置」里修改<br />· 用户认证可选：开启后访问本应用需先登录，安装时和装好后都能调整<br /><strong>数据说明</strong><br />二维码由草料开放平台公开接口实时生成，输入内容只在你自己的浏览器里处理，不会写盘、不会上传。
-changelog              = 1.0.3：安全加固（依据第三轮渗透测试报告）。① 登录失败计数改为按「来源 + 用户名」记账，攻击者用伪造用户名刷失败不再能锁死管理员登录入口；回环与私网来源直接不锁定，避免把自己锁在门外。② 登录错误提示去掉「还可尝试 N 次」，不再泄露剩余次数（锁定倒计时保留）。③ 登录表单加入一次性 CSRF 令牌。④ 补齐安全响应头（CSP / X-Frame-Options / Referrer-Policy 等）。⑤ 登出后对应会话立即失效。⑥ 拒绝 HTTP/0.9 简写请求，超大请求头返回 431，非法 Host 返回 400，超大 POST body 返回 413。<br />1.0.2：修复登录限流。① 锁定倒计时现在按秒实时递减，归零后自动恢复登录按钮（此前是服务端渲染一次的静态数字，看着一直不动）。② 修复「等一会儿刷新再登录仍显示 56 秒」：锁定期内的重复提交不再延长锁定窗口，锁定到期后失败计数清零。③ 同一 IP 连续失败 5 次后的锁定时间由 60 秒延长为 120 秒。<br />1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
+changelog              = 1.0.4：登录失败锁定逻辑调整。① 失败计数改为按「来源 IP」统一累计——同一 IP 换个用户名再试不会洗掉计数，达到 5 次即锁定该 IP。② 取消内网豁免：回环与私网来源同样受限流保护，局域网部署下锁定真正生效（如需放行特定网段，可在 LOGIN_LOCK_TRUSTED_PREFIXES 里配置）。③ 新增 120 秒连续失败窗口：两次失败间隔超过 120 秒则计数清零，避免隔几天累计 5 次被误锁。④ 锁定期间在登录按钮下方实时倒计时，秒数由服务端渲染，刷新后仍准确恢复。<br />1.0.3：安全加固（依据第三轮渗透测试报告）。① 登录失败计数改为按「来源 + 用户名」记账，攻击者用伪造用户名刷失败不再能锁死管理员登录入口；回环与私网来源直接不锁定，避免把自己锁在门外。② 登录错误提示去掉「还可尝试 N 次」，不再泄露剩余次数（锁定倒计时保留）。③ 登录表单加入一次性 CSRF 令牌。④ 补齐安全响应头（CSP / X-Frame-Options / Referrer-Policy 等）。⑤ 登出后对应会话立即失效。⑥ 拒绝 HTTP/0.9 简写请求，超大请求头返回 431，非法 Host 返回 400，超大 POST body 返回 413。<br />1.0.2：修复登录限流。① 锁定倒计时现在按秒实时递减，归零后自动恢复登录按钮（此前是服务端渲染一次的静态数字，看着一直不动）。② 修复「等一会儿刷新再登录仍显示 56 秒」：锁定期内的重复提交不再延长锁定窗口，锁定到期后失败计数清零。③ 同一 IP 连续失败 5 次后的锁定时间由 60 秒延长为 120 秒。<br />1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
 platform              = all
 source                = thirdparty
 maintainer            = Firlsy
@@ -517,7 +517,7 @@ from urllib.parse import parse_qs, unquote_plus, urlencode
 from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.0.3'
+APPVERSION = '1.0.4'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
@@ -533,14 +533,15 @@ QR_MAX_DATA = 1024                   # 单个二维码内容长度上限
 QR_MAX_BYTES = 2 * 1024 * 1024       # 上游图片体积上限
 QR_CACHE_MAX = 512                   # 内存里缓存的二维码张数
 
-# 失败计数按「来源 + 用户名」绑定：攻击者用伪造用户名刷失败，不会锁死别人的登录入口。
-# 下面这些来源被视为可信网络，不做锁定（家用 NAS 场景避免把自己锁在门外）。
-# 需要彻底关闭该豁免时，把元组清空即可：LOGIN_LOCK_TRUSTED_PREFIXES = ()
-LOGIN_LOCK_TRUSTED_PREFIXES = (
-    '127.', '::1', '10.', '192.168.', '172.16.', '172.17.', '172.18.', '172.19.',
-    '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.',
-    '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', 'fe80:', 'fc', 'fd',
-)
+# 失败计数窗口：**连续**失败之间只要不超过这个秒数就继续累计，超过则计数清零。
+# 与 LOGIN_LOCK_SECONDS 合起来就是「120 秒内连续失败 5 次 → 锁定 120 秒」。
+LOGIN_FAIL_WINDOW = 120
+
+# 锁定粒度是**来源 IP**，不区分用户名：同一 IP 的失败次数统一累计。
+# 默认**不豁免任何来源** —— 回环与私网同样受限流保护，局域网部署下也真实生效。
+# 若某个部署确实需要放行特定网段（例如前置反向代理把所有人收敛成一个 IP），
+# 把前缀加进这个元组即可，如 ('127.', '::1', '192.168.')；留空表示全部受限。
+LOGIN_LOCK_TRUSTED_PREFIXES = ()
 
 # 前端是单文件页面（内联 script/style），并会从 jsDelivr 取 JSZip、
 # 从 api.2dcode.biz 取二维码图片，所以必须放行这三处，其余一律 'self'。
@@ -985,9 +986,8 @@ class Handler(BaseHTTPRequestHandler):
             if self._current_user():
                 self._redirect('/')
                 return
-            # 锁定是按「来源 + 用户名」记账的，刷新时还不知道用户名，
-            # 所以这里展示的是该来源下某个账户的剩余时间（取最大的那个）。
-            locked = self.server.login_guard.blocked_any(self.client_address[0])
+            # 锁定按来源 IP 记账，刷新登录页时可直接取到该来源的剩余锁定时间。
+            locked = self.server.login_guard.blocked(self.client_address[0])
             block = LOGIN_LOCK_NOTICE.replace('__SEC__', str(locked)) if locked > 0 else ''
             self._render_login(block, HTTPStatus.OK)
             return
@@ -1048,7 +1048,7 @@ class Handler(BaseHTTPRequestHandler):
         username = form.get('username', '')
         password = form.get('password', '')
 
-        locked = guard.blocked(ip, username)
+        locked = guard.blocked(ip)
         if locked > 0:
             self._fail_locked(locked)
             return
@@ -1056,8 +1056,8 @@ class Handler(BaseHTTPRequestHandler):
         ok = (hmac.compare_digest(username, auth['username'])
               and verify_password(password, auth['password']))
         if not ok:
-            guard.fail(ip, username)
-            locked = guard.blocked(ip, username)
+            guard.fail(ip)
+            locked = guard.blocked(ip)
             if locked > 0:
                 self._fail_locked(locked)
             else:
@@ -1065,7 +1065,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._fail('用户名或密码不正确')
             return
 
-        guard.reset(ip, username)
+        guard.reset(ip)
         token = make_session(self.server.secret, auth['username'])
         self._redirect('/', {'Set-Cookie': '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax'
                                           % (SESSION_COOKIE, token, SESSION_TTL)})
@@ -1125,19 +1125,22 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class LoginGuard(object):
-    """登录失败限流（进程内）
+    """登录失败限流（进程内，按**来源 IP** 记账）
 
-    计数键是 **(来源 IP, 用户名)**，不是单纯的 IP：
+    规则：同一来源 IP 在 `LOGIN_FAIL_WINDOW` 秒内**连续**失败
+    `LOGIN_MAX_FAIL` 次 → 锁定该 IP `LOGIN_LOCK_SECONDS` 秒。
 
-    - 攻击者用任意伪造用户名连续失败，只会消耗「自己那个用户名」的配额，
-      不会把管理员真正在用的用户名锁死（修的是报告里的 A-01：锁定型 DoS）；
-    - 只要有一个**正确**的用户名 + 错误密码的组合被反复尝试，那个用户名仍会被锁，
-      这是限流应有的行为；但由于锁定粒度细到具体账户，不再「一人被刷、全员被挡」；
+    - 计数键就是来源 IP，**不区分用户名**：同一 IP 换个用户名再试并不会"洗掉"计数；
     - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口
       （否则「等一会儿再试」等于给自己续命，倒计时看起来永远是同一个数）；
-    - 锁定到期后计数清零，重新给满额机会；
-    - `LOGIN_LOCK_TRUSTED_PREFIXES` 里的来源（回环 / 私网 / 链路本地）不做锁定，
-      避免家用 NAS 场景把管理员自己锁在门外。
+    - 「连续」的判定：两次失败之间只要超过 `LOGIN_FAIL_WINDOW` 秒没有新失败，
+      计数就清零重来，避免隔几天累计 5 次被误锁；
+    - 锁定到期后计数与锁定一并清零，重新给满额机会；
+    - 默认**不豁免任何来源**（含回环与私网）。需要放行特定网段时，
+      往 `LOGIN_LOCK_TRUSTED_PREFIXES` 里加前缀即可。
+
+    状态结构：`_state[ip] = [失败次数, 最近一次失败时间戳, 锁定截止时间戳]`
+    （`锁定截止时间戳` 为 0 表示未锁定）。
     """
 
     def __init__(self):
@@ -1146,64 +1149,67 @@ class LoginGuard(object):
 
     @staticmethod
     def trusted(ip):
-        """来源是否属于「不锁定」的可信网络。"""
-        return bool(ip) and (ip == '::1' or ip.startswith(LOGIN_LOCK_TRUSTED_PREFIXES))
+        """来源是否在放行名单里。名单默认为空 → 任何来源都受限流保护。"""
+        return bool(ip) and ip.startswith(LOGIN_LOCK_TRUSTED_PREFIXES)
 
-    def key(self, ip, username):
-        return (ip, username or '')
+    def info(self, ip):
+        """返回 (剩余锁定秒数, 当前连续失败次数)。
 
-    def info(self, ip, username):
-        """返回 (剩余锁定秒数, 该用户名已累计失败次数)；锁定已过期时顺带清零。"""
-        key = self.key(ip, username)
+        锁定已到期、或失败计数已超出连续窗口时，顺带把该来源整条清除。
+        """
         with self._lock:
-            count, until = self._state.get(key, (0, 0))
+            rec = self._state.get(ip)
+            if not rec:
+                return 0, 0
+            count, last, until = rec
             now = time.time()
-            if until and now >= until:
-                self._state.pop(key, None)
+            if until and now >= until:                      # 锁定到期
+                self._state.pop(ip, None)
+                return 0, 0
+            if not until and last and now - last > LOGIN_FAIL_WINDOW:   # 连续窗口断裂
+                self._state.pop(ip, None)
                 return 0, 0
             remain = int(until - now + 0.5) if until else 0
             return (remain if remain > 0 else 0), count
 
-    def blocked(self, ip, username):
-        return self.info(ip, username)[0]
+    def blocked(self, ip):
+        """该来源剩余锁定秒数（0 表示未锁定）。"""
+        return self.info(ip)[0]
 
-    def blocked_any(self, ip):
-        """该来源下**任意**账户还剩多少秒锁定（用于登录页首次打开时的提示）。"""
-        now = time.time()
-        best = 0
+    def fail(self, ip):
+        """记一次失败，必要时进入锁定。"""
         with self._lock:
-            for (key_ip, _user), (_count, until) in self._state.items():
-                if key_ip != ip or not until:
-                    continue
-                remain = int(until - now + 0.5)
-                if remain > best:
-                    best = remain
-        return best
-
-    def fail(self, ip, username):
-        """记一次失败。可信来源只计数、不锁定。"""
-        key = self.key(ip, username)
-        with self._lock:
-            count, until = self._state.get(key, (0, 0))
             now = time.time()
+            rec = self._state.get(ip)
+            count, last, until = rec if rec else (0, 0, 0)
+
             if until and now < until:
-                # 已在锁定期：只累加计数，保持原锁定窗口
-                self._state[key] = (count + 1, until)
+                # 已在锁定期：只累加计数，保持原锁定窗口不变
+                self._state[ip] = [count + 1, last, until]
                 return
+
+            if until and now >= until:      # 上一轮锁定已到期 → 重新开始
+                count, last, until = 0, 0, 0
+            if last and now - last > LOGIN_FAIL_WINDOW:
+                count, last = 0, 0          # 连续窗口断裂 → 计数清零
+
             count += 1
+            last = now
             if count >= LOGIN_MAX_FAIL and not self.trusted(ip):
                 until = now + LOGIN_LOCK_SECONDS
-            else:
-                until = 0
-            self._state[key] = (count, until)
-            if len(self._state) > 1024:          # 轻量清理，避免长期累积
-                for stale in [k for k, v in self._state.items()
-                              if not v[1] or now >= v[1]]:
-                    self._state.pop(stale, None)
 
-    def reset(self, ip, username):
+            self._state[ip] = [count, last, until]
+
+            if len(self._state) > 1024:     # 轻量清理，避免长期累积
+                stale = [k for k, v in self._state.items()
+                         if (v[2] and now >= v[2])
+                         or (not v[2] and (not v[1] or now - v[1] > LOGIN_FAIL_WINDOW))]
+                for k in stale:
+                    self._state.pop(k, None)
+
+    def reset(self, ip):
         with self._lock:
-            self._state.pop(self.key(ip, username), None)
+            self._state.pop(ip, None)
 
 
 class QrProxy(object):
@@ -2741,9 +2747,9 @@ fnos-qrcode.fpk                    ← gzip 压缩的 tar
 
 | 属性 | 值 |
 | --- | --- |
-| 大小 | `85225` B |
-| MD5 | `49ec1b657798f6a23e80d6ff8c892b33` |
-| SHA-256 | `e5248fb7622db13692daa40f2818e95c58e70157f7295c38b4f69cc6c0c437ef` |
+| 大小 | `85625` B |
+| MD5 | `a51b615cf752cb4a3fdc4a1d2f0e765d` |
+| SHA-256 | `ce1b11442dab3be3a22f48db18fd4eed74283cf9244a144ff8df178bc904c19f` |
 
 ### 校验脚本
 
@@ -2877,6 +2883,30 @@ sudo appcenter-cli start fnos-qrcode
 | 代理 | `/qr` 正常 / 缓存 / 参数校验 / 上游 502 回落 | ✅ 缺参 `400`、超长 `400`、注入被中和、缓存字节一致 |
 | 下载 | 打包下载 zip | ✅ 修复前超时（CORS）→ 修复后 **3374 B 成功**，zip 内 3 个 PNG 正常 |
 
+> 说明：上表 A-01 那几行记录的是 v1.0.3 当次（按 IP + 用户名记账、豁免私网）的结果。
+> v1.0.4 已把粒度改回纯来源 IP 并取消内网豁免，以 v1.0.4 表格为准。
+
+**v1.0.4 锁定逻辑调整的验证**（`importlib` 直接加载发布包里的真实 `app.py`，
+本地起实例走 HTTP + Chrome 无头浏览器；阈值 5 次 / 窗口 120 秒 / 锁定 120 秒不变）
+
+| 场景 | 期望 | 结果 |
+| --- | --- | --- |
+| 连续失败 4 次 | 不锁定 | ✅ 全部 `401` |
+| 第 5 次连续失败 | 锁定 120 秒 | ✅ `429`，`data-sec="120"` |
+| 锁定期内再提交 | 不延长窗口 | ✅ 剩余 105~118 秒递减，未重置回 120 |
+| 同一 IP 换用户名失败 | 计数不洗掉 | ✅ 4 个用户名各失败 1 次后，第 5 个用户名失败即 `429` |
+| 锁定期间用正确凭据 | 一并被挡 | ✅ `429`，不下发会话 |
+| 刷新 `GET /login` | 延续同一窗口 | ✅ 服务端现算剩余秒数，非重新计数 |
+| 倒计时归零 | 提示隐藏、按钮恢复 | ✅ 均生效 |
+| 到期后再失败 1 次 | 计数归零 | ✅ `401`，内部状态计数为 1、锁定时间戳为 0 |
+| 成功登录 | 计数清零 | ✅ `302`；随后失败回到 `401` |
+| 连续窗口断裂 | 计数清零 | ✅ 回拨最近失败时间 121 秒后再失败 → `401`（未被锁） |
+| 回环来源（出厂配置） | 同样受限 | ✅ 连续 6 次 → 第 5、6 次 `429`（豁免确已取消） |
+| 放行名单机制 | 仍可用 | ✅ 临时加 `203.0.113.` 后该网段不锁，名单外照常锁定（验完已还原） |
+
+锁定相关 13 条用例全部通过；全量 86 条通过 85，唯一失败项为 `F-21`
+（`Server` 头仍带 `Python/3.x.y`，属 v1.0.3 的 F-06 修复不完整，与本轮改动无关）。
+
 ---
 
 ## 8. 实现要点与踩坑记录
@@ -2908,11 +2938,14 @@ sudo appcenter-cli start fnos-qrcode
 - 登出会把该 token 记进进程内吊销表（`SessionStore`），复制走的 Cookie 立刻失效
 - 登录表单带**一次性 CSRF 令牌**（`CsrfGuard`，30 分钟有效，提交即作废），
   服务端保存、不引入预认证 Cookie，登录页依然不下发任何 Cookie
-- 登录失败限流（`LoginGuard`）：计数键是 **(来源 IP, 用户名)**，连续失败 5 次锁定 **120 秒**
-  （v1.0.2 起时长由 60 秒改为 120 秒，v1.0.3 起粒度由纯 IP 改为 IP+用户名）；
+- 登录失败限流（`LoginGuard`）：计数键是**来源 IP**（不区分用户名），
+  **120 秒内连续**失败 5 次即锁定该来源 **120 秒**
+  （时长 60→120 秒是 v1.0.2；v1.0.3 一度改成 (IP, 用户名) 并豁免私网；
+  **v1.0.4 改回纯来源 IP 并取消内网豁免**，同时新增 120 秒连续失败窗口）；
   锁定提示里的秒数由页面内联脚本按秒递减，归零后自动隐藏提示并恢复登录按钮
 - 错误提示统一为「用户名或密码不正确」，不透露剩余可尝试次数
-- `LOGIN_LOCK_TRUSTED_PREFIXES` 里的来源（回环 / 私网 / 链路本地）不做锁定
+- `LOGIN_LOCK_TRUSTED_PREFIXES` 默认为**空元组 —— 任何来源都不豁免**（含回环与私网）；
+  确实需要放行时（例如前置反向代理）才把前缀加进去
 - 生命周期脚本用 `--pass-stdin` 通过管道传密码，避免密码出现在 `ps` 命令行里
 
 ### 8.3 踩坑记录（都已修复）
@@ -3054,6 +3087,34 @@ sudo appcenter-cli start fnos-qrcode
    - `/qr` 位于鉴权之后，未登录同样 `302 /login`
 
    顺带把 CSP 的 `connect-src` 收紧为 `'self'`（`img-src` 保留第三方域给回落用）。
+
+10. **锁定粒度与「内网豁免」的来回调整**（v1.0.4）
+
+   v1.0.3 依据第三轮报告把计数粒度从「纯 IP」改成「(IP, 用户名)」，
+   并把回环 / 私网前缀加进 `LOGIN_LOCK_TRUSTED_PREFIXES`。随后发现两个副作用：
+
+   | 现象 | 根因 |
+   | --- | --- |
+   | 局域网内怎么都触发不了锁定 | 私网来源被豁免 —— 而本应用的主要使用场景恰恰就是局域网 |
+   | 同一 IP 换用户名反复失败也不锁 | 计数按 (IP, 用户名) 分开记账，换个用户名就是一份新配额 |
+
+   v1.0.4 按实际需求调整回**纯来源 IP**，并把放行名单清空（默认谁都不豁免）：
+
+   - `LoginGuard.key()` 退化为来源 IP；状态变为 `_state[ip] = [失败次数, 最近失败时间, 锁定截止时间]`
+   - `blocked(ip)` / `fail(ip)` / `reset(ip)` 不再接收用户名参数
+   - `GET /login` 直接取 `blocked(ip)`（原来要靠 `blocked_any(ip)` 在所有用户名里取最大值，
+     因为刷新页面时还不知道用户会填哪个用户名）
+   - 新增 `LOGIN_FAIL_WINDOW = 120`：`fail()` 里若距上次失败已超过该窗口则计数清零，
+     避免「隔几天各失败一两次、累计 5 次」被误锁
+   - `trusted()` 改为**只依赖放行名单**（去掉硬编码的 `::1` 特判）；名单为空时任何来源都受限
+
+   **取舍（重要）**：纯 IP 粒度在共享出口 IP（反向代理 / NAT）时会「一人失败、全 IP 被锁」，
+   正是报告 A-01 描述的场景 —— 本次是**有意接受**这一取舍，换取局域网内锁定真实可用。
+   部署在反向代理之后时，应把代理出口 IP 加进 `LOGIN_LOCK_TRUSTED_PREFIXES`，或在代理层限流。
+
+   验证：86 条用例通过 85（唯一失败项是 `Server` 头仍带 `Python/3.x.y`，属 F-06 未修完，与本次改动无关）。
+   锁定相关 13 条全部通过，含「换用户名不洗掉计数」「回环来源同样锁定」「连续窗口断裂清零」。
+   实现说明见 `workbuddy开发项目测试/pentest-12990/登录锁定逻辑-实现说明.html`。
 
    **实测**：修复前 zip 下载超时（落到 `window.open` 兜底）；修复后同一台机器
    4 张图出图 + **打包下载成功 3374 B**，无失败请求。
