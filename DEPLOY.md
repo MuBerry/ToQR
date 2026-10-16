@@ -2603,7 +2603,7 @@ git push -u origin fnos-qrcode
 ### 9.3 提交历史
 
 ```
-0aced58  修复启用时误报「端口被占用」：manifest 的 service_port 不跟随用户改的端口
+e9aa7d8  修复启用时误报「端口被占用」：manifest 的 service_port 不跟随用户改的端口
 9b2903f  新增 DEPLOY.md：FPK 构建源码与完整构建过程
 d512b38  fnos-qrcode: README 补充 FPK 与静态部署两种形态的说明
 d96d195  统一换行符为 LF（cmd/ 脚本在飞牛上需以 LF 检出）
