@@ -2713,6 +2713,8 @@ git push -u origin fnos-qrcode
 ### 9.3 提交历史
 
 ```
+100f538  修复登录限流：倒计时不动 / 等待后仍锁在同一秒，锁定 60s→120s
+38a36f6  DEPLOY.md：同步提交历史
 e9aa7d8  修复启用时误报「端口被占用」：manifest 的 service_port 不跟随用户改的端口
 9b2903f  新增 DEPLOY.md：FPK 构建源码与完整构建过程
 d512b38  fnos-qrcode: README 补充 FPK 与静态部署两种形态的说明
