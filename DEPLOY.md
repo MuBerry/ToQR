@@ -16,7 +16,7 @@
 
 | 分支 | 内容 |
 | --- | --- |
-| `main` | 开发主版本：单文件 `index.html`（二维码批量生成页面，40997 B） |
+| `main` | 开发主版本：单文件 `index.html`（二维码批量生成页面，42385 B） |
 | `fnos-qrcode` | 在 `main` 之上叠加上述两种部署形态；本文档所在分支 |
 
 ---
@@ -55,6 +55,8 @@
 
 - 服务端：**纯 Python3 标准库**（`http.server` + `hashlib` + `hmac`），无第三方依赖、不需要联网装包
 - 前端：单文件 `index.html`（无框架、无构建），直接由服务端静态托管
+- 二维码：由服务端代理转发草料开放平台公开接口（`/qr`），
+  原因是该接口**只对 localhost 放行 CORS**，浏览器直连在局域网/域名下必定失败（详见 8.3 第 9 条）
 - 打包：优先使用飞牛自带官方 `fnpack`；无 fnOS 环境时用仓库内置的等效打包器
 
 **关键设计：端口为什么能做到「装时可指定、装后可改」**
@@ -74,7 +76,7 @@
 
 ```
 .
-├── index.html                      # 开发主版本页面（唯一前端源，40997 B）
+├── index.html                      # 开发主版本页面（唯一前端源，42385 B）
 ├── .gitattributes                  # 强制文本 LF（cmd/ 脚本在 Linux 上必须 LF）
 ├── .gitignore
 ├── DEPLOY.md                       # 本文件
@@ -124,14 +126,14 @@ FPK 工程共 21 个源文件，按职责归类：
 
 | # | 文件 | 行数 | 大小 | 职责 |
 | --- | --- | --- | --- | --- |
-| 1 | `manifest` | 15 | 2525 B | 应用清单：appname/版本/入口/端口/平台 |
+| 1 | `manifest` | 15 | 3191 B | 应用清单：appname/版本/入口/端口/平台 |
 | 2 | `app/ui/config` | 16 | 321 B | 桌面入口 JSON，端口写 `${wizard_port}` |
 | 3 | `config/privilege` | 7 | 107 B | 运行身份：`run-as: package` |
 | 4 | `config/resource` | 5 | 43 B | 资源声明（数据共享为空） |
 | 5 | `wizard/install` | 71 | 2205 B | 安装向导：端口 + 认证三项 |
 | 6 | `wizard/config` | 71 | 2060 B | 设置向导（装后调整，同名字段） |
 | 7 | `wizard/uninstall` | 24 | 733 B | 卸载向导：保留 / 删除配置 |
-| 8 | `app/server/app.py` | 677 | 26447 B | 服务端：静态托管 + 端口配置 + 可选认证 |
+| 8 | `app/server/app.py` | 992 | 40368 B | 服务端：静态托管 + 端口配置 + 可选认证 |
 | 9 | `cmd/main` | 183 | 4816 B | start / stop / status 入口 |
 | 10 | `cmd/install_init` | 46 | 1601 B | 安装前：Python、端口、密码校验 |
 | 11 | `cmd/install_callback` | 147 | 5110 B | 安装后：落盘配置 + 修权限 |
@@ -144,7 +146,7 @@ FPK 工程共 21 个源文件，按职责归类：
 | 18 | `tools/build_fpk.py` | 228 | 7894 B | 备用打包器（无 fnpack 时） |
 | 19 | `tools/make_icons.py` | 116 | 3822 B | 图标生成器（构建期工具） |
 | 20 | `build-fpk.sh` | 65 | 2103 B | 一键构建脚本 |
-| 21 | `app/ui/index.html` | — | 40997 B | 前端页面（构建时从根 `index.html` 同步，故不重复贴出） |
+| 21 | `app/ui/index.html` | — | 42385 B | 前端页面（构建时从根 `index.html` 同步，故不重复贴出） |
 
 图标二进制：
 
@@ -163,10 +165,10 @@ FPK 工程共 21 个源文件，按职责归类：
 
 ```ini
 appname               = fnos-qrcode
-version               = 1.0.2
+version               = 1.0.3
 display_name          = 二维码批量生成器
 desc                  = 简单高效的二维码批量生成工具。在页面里每行输入一个内容，即可一次性生成对应的二维码，支持文本与网址。<br /><strong>主要能力</strong><br />· 批量生成：一行一条，一次最多 200 个<br />· 多条导入：支持 <code>.txt</code> / <code>.csv</code> / <code>.tsv</code>，也可直接把文件拖到输入框<br />· 实时预览：生成后网格预览，可单张下载或一键打包成 zip<br />· 最近记录：本地保存最近几次生成，点击即可重新载入<br /><strong>关于端口与认证</strong><br />· 服务端口安装时填写，默认 <code>10001</code>，装好后可在应用中心「设置」里修改<br />· 用户认证可选：开启后访问本应用需先登录，安装时和装好后都能调整<br /><strong>数据说明</strong><br />二维码由草料开放平台公开接口实时生成，输入内容只在你自己的浏览器里处理，不会写盘、不会上传。
-changelog              = 1.0.2：修复登录限流。① 锁定倒计时现在按秒实时递减，归零后自动恢复登录按钮（此前是服务端渲染一次的静态数字，看着一直不动）。② 修复「等一会儿刷新再登录仍显示 56 秒」：锁定期内的重复提交不再延长锁定窗口，锁定到期后失败计数清零。③ 同一 IP 连续失败 5 次后的锁定时间由 60 秒延长为 120 秒。<br />1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
+changelog              = 1.0.3：安全加固（依据第三轮渗透测试报告）。① 登录失败计数改为按「来源 + 用户名」记账，攻击者用伪造用户名刷失败不再能锁死管理员登录入口；回环与私网来源直接不锁定，避免把自己锁在门外。② 登录错误提示去掉「还可尝试 N 次」，不再泄露剩余次数（锁定倒计时保留）。③ 登录表单加入一次性 CSRF 令牌。④ 补齐安全响应头（CSP / X-Frame-Options / Referrer-Policy 等）。⑤ 登出后对应会话立即失效。⑥ 拒绝 HTTP/0.9 简写请求，超大请求头返回 431，非法 Host 返回 400，超大 POST body 返回 413。<br />1.0.2：修复登录限流。① 锁定倒计时现在按秒实时递减，归零后自动恢复登录按钮（此前是服务端渲染一次的静态数字，看着一直不动）。② 修复「等一会儿刷新再登录仍显示 56 秒」：锁定期内的重复提交不再延长锁定窗口，锁定到期后失败计数清零。③ 同一 IP 连续失败 5 次后的锁定时间由 60 秒延长为 120 秒。<br />1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
 platform              = all
 source                = thirdparty
 maintainer            = Firlsy
@@ -502,6 +504,7 @@ import hmac
 import json
 import mimetypes
 import os
+import re
 import secrets
 import signal
 import socket
@@ -510,10 +513,11 @@ import threading
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote_plus
+from urllib.parse import parse_qs, unquote_plus, urlencode
+from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.0.2'
+APPVERSION = '1.0.3'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
@@ -521,6 +525,40 @@ SESSION_TTL = 7 * 24 * 3600          # 7 天
 PBKDF2_ITERATIONS = 200_000
 LOGIN_MAX_FAIL = 5
 LOGIN_LOCK_SECONDS = 120
+CSRF_TTL = 30 * 60                   # 登录表单 token 有效期（秒）
+MAX_BODY = 64 * 1024                 # POST body 上限
+MAX_HEADER_LINE = 8192               # 单行请求头上限（默认 65536 太宽松）
+QR_UPSTREAM = 'https://api.2dcode.biz/v1/create-qr-code'
+QR_MAX_DATA = 1024                   # 单个二维码内容长度上限
+QR_MAX_BYTES = 2 * 1024 * 1024       # 上游图片体积上限
+QR_CACHE_MAX = 512                   # 内存里缓存的二维码张数
+
+# 失败计数按「来源 + 用户名」绑定：攻击者用伪造用户名刷失败，不会锁死别人的登录入口。
+# 下面这些来源被视为可信网络，不做锁定（家用 NAS 场景避免把自己锁在门外）。
+# 需要彻底关闭该豁免时，把元组清空即可：LOGIN_LOCK_TRUSTED_PREFIXES = ()
+LOGIN_LOCK_TRUSTED_PREFIXES = (
+    '127.', '::1', '10.', '192.168.', '172.16.', '172.17.', '172.18.', '172.19.',
+    '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.',
+    '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', 'fe80:', 'fc', 'fd',
+)
+
+# 前端是单文件页面（内联 script/style），并会从 jsDelivr 取 JSZip、
+# 从 api.2dcode.biz 取二维码图片，所以必须放行这三处，其余一律 'self'。
+CSP = '; '.join((
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline'",
+    # img-src 仍保留第三方域：前端在代理不可用时会回落到直连 <img>
+    "img-src 'self' data: blob: https://api.2dcode.biz",
+    # connect-src 收紧为 'self'：跨域 fetch 在真实域名下本来就被 CORS 拦，
+    # 现在二维码统一走同源 /qr 代理，这里不再需要放行任何第三方
+    "connect-src 'self'",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+))
 
 HERE = os.path.dirname(os.path.abspath(__file__))     # <app>/server
 APP_DIR = os.path.dirname(HERE)                       # <app>
@@ -716,6 +754,7 @@ LOGIN_PAGE = """<!DOCTYPE html>
 </style></head>
 <body>
   <form class="box" method="post" action="/login">
+    __CSRF__
     <div class="logo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="2.5" y="2.5" width="8" height="8" rx="1.4" fill="#1f2937"/>
@@ -808,7 +847,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(body)))
+        # ---- 安全响应头（报告 F-04）----
         self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+        self.send_header('Content-Security-Policy', CSP)
         # 一律短连接：请求体可能被截断，长连接会串包
         self.send_header('Connection', 'close')
         self.close_connection = True
@@ -817,6 +861,87 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != 'HEAD' and body:
             self.wfile.write(body)
+
+    # ---- 请求层防护（报告 R2-01 / R2-02 / R2-03）----
+    def handle_one_request(self):
+        """拒绝 HTTP/0.9 简写请求；请求行过长给明确的 414 而不是静默断连。
+
+        其余逻辑与 BaseHTTPRequestHandler.handle_one_request 保持一致。
+        """
+        try:
+            self.raw_requestline = self.rfile.readline(65537)
+            if len(self.raw_requestline) > 65536:
+                self.requestline = ''
+                self.request_version = ''
+                self.command = ''
+                self.send_error(HTTPStatus.REQUEST_URI_TOO_LONG)
+                return
+            if not self.raw_requestline:
+                self.close_connection = True
+                return
+            if not self.parse_request():
+                # parse_request 已回过错误响应
+                return
+            if self.request_version not in ('HTTP/1.0', 'HTTP/1.1'):
+                # 无版本号的 HTTP/0.9 简写请求（报告 R2-02）
+                self.send_error(HTTPStatus.HTTP_VERSION_NOT_SUPPORTED,
+                                'HTTP Version Not Supported')
+                self.close_connection = True
+                return
+            name = 'do_' + self.command
+            if not hasattr(self, name):
+                self.send_error(HTTPStatus.NOT_IMPLEMENTED,
+                                'Unsupported method (%r)' % self.command)
+                return
+            getattr(self, name)()
+            self.wfile.flush()
+        except (TimeoutError, socket.timeout) as err:
+            self.log_error('Request timed out: %r', err)
+            self.close_connection = True
+
+    def _oversized_header(self):
+        """逐行检查请求头长度：超限直接 431，避免被静默丢弃（报告 R2-01）。"""
+        for line in str(self.headers).splitlines():
+            if len(line) > MAX_HEADER_LINE:
+                return True
+        return False
+
+    def _bad_host(self):
+        """Host 必须是 host[:port] 形态（IPv6 带方括号）。缺失或含异常字符一律 400。"""
+        host = self.headers.get('Host')
+        if not host:
+            return True
+        allowed = set('abcdefghijklmnopqrstuvwxyz'
+                      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-:[]_')
+        return not set(host) <= allowed or len(host) > 255
+
+    def _guard_request(self):
+        """返回 True 表示请求已（带着错误响应）被拒。"""
+        if self._oversized_header():
+            self._send(HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+                       'request header too large', 'text/plain; charset=utf-8')
+            return True
+        if self._bad_host():
+            self._send(HTTPStatus.BAD_REQUEST, 'bad host', 'text/plain; charset=utf-8')
+            return True
+        return False
+
+    def _read_form(self):
+        """按上限读取并解析 POST 表单；超限返回 None（调用方回 413）。"""
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0 or length > MAX_BODY:
+            return None
+        raw = self.rfile.read(length).decode('utf-8', 'replace') if length else ''
+        form = {}
+        for pair in raw.split('&'):
+            if '=' in pair:
+                key, _, value = pair.partition('=')
+                # unquote_plus 同时处理 + 和 %XX
+                form[unquote_plus(key)] = unquote_plus(value)
+        return form
 
     def _redirect(self, location, extra=None):
         headers = {'Location': location, 'Cache-Control': 'no-store'}
@@ -835,15 +960,21 @@ class Handler(BaseHTTPRequestHandler):
     def _current_user(self):
         if not self._auth_on():
             return 'anonymous'
-        return parse_session(self.server.secret, self._cookie(SESSION_COOKIE))
+        token = self._cookie(SESSION_COOKIE)
+        if not token or self.server.session_store.revoked(token):
+            return None
+        return parse_session(self.server.secret, token)
 
     # ---- 路由 ----
     def do_HEAD(self):
         self.do_GET()
 
     def do_GET(self):
+        if self._guard_request():
+            return
         path = self._path()
         if path == '/logout':
+            self.server.session_store.revoke(self._cookie(SESSION_COOKIE))
             self._redirect('/login' if self._auth_on() else '/',
                            {'Set-Cookie': '%s=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax' % SESSION_COOKIE})
             return
@@ -854,7 +985,9 @@ class Handler(BaseHTTPRequestHandler):
             if self._current_user():
                 self._redirect('/')
                 return
-            locked = self.server.login_guard.blocked(self.client_address[0])
+            # 锁定是按「来源 + 用户名」记账的，刷新时还不知道用户名，
+            # 所以这里展示的是该来源下某个账户的剩余时间（取最大的那个）。
+            locked = self.server.login_guard.blocked_any(self.client_address[0])
             block = LOGIN_LOCK_NOTICE.replace('__SEC__', str(locked)) if locked > 0 else ''
             self._render_login(block, HTTPStatus.OK)
             return
@@ -864,9 +997,32 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect('/login')
             return
 
+        if path == '/qr':
+            self._serve_qr()
+            return
+
         self._serve_static(path)
 
+    def _serve_qr(self):
+        """同源二维码代理：/qr?data=...&size=400x400"""
+        raw_query = self.path.split('?', 1)[1] if '?' in self.path else ''
+        query = parse_qs(raw_query, keep_blank_values=True)
+        data = (query.get('data') or [''])[0]
+        size = (query.get('size') or [''])[0]
+        if not self.server.qr_proxy.valid(data, size):
+            self._send(HTTPStatus.BAD_REQUEST, 'bad qr request', 'text/plain; charset=utf-8')
+            return
+        try:
+            ctype, blob = self.server.qr_proxy.get(data, size)
+        except Exception as err:                      # noqa: BLE001 —— 上游任何异常都回 502
+            sys.stderr.write('[qr] upstream failed: %r\n' % (err,))
+            self._send(HTTPStatus.BAD_GATEWAY, 'upstream error', 'text/plain; charset=utf-8')
+            return
+        self._send(HTTPStatus.OK, blob, ctype, {'Cache-Control': 'public, max-age=86400'})
+
     def do_POST(self):
+        if self._guard_request():
+            return
         path = self._path()
         if path != '/login':
             self._send(HTTPStatus.NOT_FOUND, 'not found', 'text/plain; charset=utf-8')
@@ -875,48 +1031,54 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect('/')
             return
 
-        length = min(int(self.headers.get('Content-Length') or 0), 64 * 1024)
-        raw = self.rfile.read(length).decode('utf-8', 'replace') if length else ''
-        form = {}
-        for pair in raw.split('&'):
-            if '=' in pair:
-                key, _, value = pair.partition('=')
-                # unquote_plus 同时处理 + 和 %XX
-                form[unquote_plus(key)] = unquote_plus(value)
+        form = self._read_form()
+        if form is None:
+            self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                       'request body too large', 'text/plain; charset=utf-8')
+            return
+
+        # 一次性 CSRF 令牌（报告 A-03）：跨站页面拿不到，提交后立即作废
+        if not self.server.csrf_guard.consume(form.get('csrf_token', '')):
+            self._fail('表单已过期，请重新输入', HTTPStatus.FORBIDDEN)
+            return
 
         ip = self.client_address[0]
         guard = self.server.login_guard
-        locked = guard.blocked(ip)
+        auth = self.server.settings['auth']
+        username = form.get('username', '')
+        password = form.get('password', '')
+
+        locked = guard.blocked(ip, username)
         if locked > 0:
             self._fail_locked(locked)
             return
 
-        auth = self.server.settings['auth']
-        username = form.get('username', '')
-        password = form.get('password', '')
         ok = (hmac.compare_digest(username, auth['username'])
               and verify_password(password, auth['password']))
         if not ok:
-            guard.fail(ip)
-            locked = guard.blocked(ip)
+            guard.fail(ip, username)
+            locked = guard.blocked(ip, username)
             if locked > 0:
                 self._fail_locked(locked)
             else:
-                remain = max(0, LOGIN_MAX_FAIL - guard.count(ip))
-                self._fail('用户名或密码不正确，还可尝试 %d 次' % remain)
+                # 不再透露「还剩几次」（报告 A-02）
+                self._fail('用户名或密码不正确')
             return
 
-        guard.reset(ip)
+        guard.reset(ip, username)
         token = make_session(self.server.secret, auth['username'])
         self._redirect('/', {'Set-Cookie': '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax'
                                           % (SESSION_COOKIE, token, SESSION_TTL)})
 
     def _render_login(self, block, status):
-        page = LOGIN_PAGE.replace('__ERROR__', block)
+        page = (LOGIN_PAGE
+                .replace('__CSRF__', '<input type="hidden" name="csrf_token" value="%s">'
+                         % self.server.csrf_guard.issue())
+                .replace('__ERROR__', block))
         self._send(status, page, 'text/html; charset=utf-8', {'Cache-Control': 'no-store'})
 
-    def _fail(self, message):
-        self._render_login('<div class="err">%s</div>' % message, HTTPStatus.UNAUTHORIZED)
+    def _fail(self, message, status=HTTPStatus.UNAUTHORIZED):
+        self._render_login('<div class="err">%s</div>' % message, status)
 
     def _fail_locked(self, seconds):
         self._render_login(LOGIN_LOCK_NOTICE.replace('__SEC__', str(seconds)),
@@ -963,52 +1125,204 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class LoginGuard(object):
-    """极简登录失败限流（进程内）
+    """登录失败限流（进程内）
 
-    规则：同一 IP 连续失败 LOGIN_MAX_FAIL 次后，锁定 LOGIN_LOCK_SECONDS 秒。
-    - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口（否则等待再试就永远是「重新开始倒数」）；
-    - 锁定到期后失败计数清零，重新给满额机会。
+    计数键是 **(来源 IP, 用户名)**，不是单纯的 IP：
+
+    - 攻击者用任意伪造用户名连续失败，只会消耗「自己那个用户名」的配额，
+      不会把管理员真正在用的用户名锁死（修的是报告里的 A-01：锁定型 DoS）；
+    - 只要有一个**正确**的用户名 + 错误密码的组合被反复尝试，那个用户名仍会被锁，
+      这是限流应有的行为；但由于锁定粒度细到具体账户，不再「一人被刷、全员被挡」；
+    - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口
+      （否则「等一会儿再试」等于给自己续命，倒计时看起来永远是同一个数）；
+    - 锁定到期后计数清零，重新给满额机会；
+    - `LOGIN_LOCK_TRUSTED_PREFIXES` 里的来源（回环 / 私网 / 链路本地）不做锁定，
+      避免家用 NAS 场景把管理员自己锁在门外。
     """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._state = {}
 
-    def info(self, ip):
-        """返回 (剩余锁定秒数, 已累计失败次数)；锁定已过期时顺带清零。"""
+    @staticmethod
+    def trusted(ip):
+        """来源是否属于「不锁定」的可信网络。"""
+        return bool(ip) and (ip == '::1' or ip.startswith(LOGIN_LOCK_TRUSTED_PREFIXES))
+
+    def key(self, ip, username):
+        return (ip, username or '')
+
+    def info(self, ip, username):
+        """返回 (剩余锁定秒数, 该用户名已累计失败次数)；锁定已过期时顺带清零。"""
+        key = self.key(ip, username)
         with self._lock:
-            count, until = self._state.get(ip, (0, 0))
+            count, until = self._state.get(key, (0, 0))
             now = time.time()
             if until and now >= until:
-                self._state.pop(ip, None)
+                self._state.pop(key, None)
                 return 0, 0
             remain = int(until - now + 0.5) if until else 0
             return (remain if remain > 0 else 0), count
 
-    def blocked(self, ip):
-        return self.info(ip)[0]
+    def blocked(self, ip, username):
+        return self.info(ip, username)[0]
 
-    def count(self, ip):
-        return self.info(ip)[1]
-
-    def fail(self, ip):
+    def blocked_any(self, ip):
+        """该来源下**任意**账户还剩多少秒锁定（用于登录页首次打开时的提示）。"""
+        now = time.time()
+        best = 0
         with self._lock:
-            count, until = self._state.get(ip, (0, 0))
+            for (key_ip, _user), (_count, until) in self._state.items():
+                if key_ip != ip or not until:
+                    continue
+                remain = int(until - now + 0.5)
+                if remain > best:
+                    best = remain
+        return best
+
+    def fail(self, ip, username):
+        """记一次失败。可信来源只计数、不锁定。"""
+        key = self.key(ip, username)
+        with self._lock:
+            count, until = self._state.get(key, (0, 0))
             now = time.time()
             if until and now < until:
                 # 已在锁定期：只累加计数，保持原锁定窗口
-                self._state[ip] = (count + 1, until)
+                self._state[key] = (count + 1, until)
                 return
             count += 1
-            until = now + LOGIN_LOCK_SECONDS if count >= LOGIN_MAX_FAIL else 0
-            self._state[ip] = (count, until)
-            if len(self._state) > 512:          # 轻量清理，避免长期累积
-                for key in [k for k, v in self._state.items() if v[1] and now >= v[1]]:
-                    self._state.pop(key, None)
+            if count >= LOGIN_MAX_FAIL and not self.trusted(ip):
+                until = now + LOGIN_LOCK_SECONDS
+            else:
+                until = 0
+            self._state[key] = (count, until)
+            if len(self._state) > 1024:          # 轻量清理，避免长期累积
+                for stale in [k for k, v in self._state.items()
+                              if not v[1] or now >= v[1]]:
+                    self._state.pop(stale, None)
 
-    def reset(self, ip):
+    def reset(self, ip, username):
         with self._lock:
-            self._state.pop(ip, None)
+            self._state.pop(self.key(ip, username), None)
+
+
+class QrProxy(object):
+    """二维码同源代理
+
+    第三方接口只对 localhost / 127.0.0.1 回 `Access-Control-Allow-Origin`，
+    从局域网 IP 或域名访问时浏览器的 fetch 必然被 CORS 拦掉——「打包下载 zip」因此
+    在真实部署上必定降级（实测：NAS 上 zip 下载超时，落到 window.open 兜底）。
+    前端改为请求同源的 /qr，由服务端转发，同时把二维码收进 CSP 的 'self'。
+
+    安全要点：上游主机写死在 QR_UPSTREAM（不可由请求指定，杜绝 SSRF）；
+    data / size 严格校验后用 urlencode 拼装，杜绝参数注入；响应限体积、限类型。
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._cache = {}
+
+    @staticmethod
+    def valid(data, size):
+        if not data or len(data) > QR_MAX_DATA:
+            return False
+        if not re.fullmatch(r'\d{1,4}x\d{1,4}', size or ''):
+            return False
+        return max(int(v) for v in size.split('x')) <= 1024
+
+    def get(self, data, size):
+        """返回 (content_type, bytes)；失败抛异常。"""
+        key = (data, size)
+        with self._lock:
+            hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+
+        params = urlencode({'data': data, 'size': size})
+        req = UrlRequest(QR_UPSTREAM + '?' + params,
+                         headers={'User-Agent': '%s/%s' % (APPNAME, APPVERSION)})
+        with url_open(req, timeout=15) as resp:
+            ctype = (resp.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+            if resp.status != 200 or not ctype.startswith('image/'):
+                raise ValueError('upstream %s %s' % (resp.status, ctype or '-'))
+            blob = resp.read(QR_MAX_BYTES + 1)
+        if not blob or len(blob) > QR_MAX_BYTES:
+            raise ValueError('upstream size %d' % len(blob))
+
+        with self._lock:
+            if len(self._cache) >= QR_CACHE_MAX:
+                self._cache.clear()
+            self._cache[key] = (ctype, blob)
+        return (ctype, blob)
+
+
+class SessionStore(object):
+    """登出后作废对应会话（进程内吊销表）
+
+    会话本身仍是 HMAC 签名的无状态 Cookie，不写盘；这里只额外记住「已登出的 token」，
+    让 logout 之后复制走的 Cookie 也立即失效（报告 §5 的待测项：登出是否真正失效）。
+    已知取舍：吊销表在进程内存里，重启应用即清空；改密码会让所有会话失效（密钥派生自密码哈希）。
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._revoked = {}
+
+    def revoke(self, token):
+        if not token:
+            return
+        now = time.time()
+        with self._lock:
+            self._revoked[token] = now + SESSION_TTL
+            if len(self._revoked) > 256:
+                for stale in [k for k, exp in self._revoked.items() if now >= exp]:
+                    self._revoked.pop(stale, None)
+
+    def revoked(self, token):
+        if not token:
+            return True
+        now = time.time()
+        with self._lock:
+            exp = self._revoked.get(token)
+            if exp is None:
+                return False
+            if now >= exp:
+                self._revoked.pop(token, None)
+                return False
+            return True
+
+
+class CsrfGuard(object):
+    """登录表单的一次性令牌（服务端保存，不依赖预认证 Cookie）
+
+    GET /login 时签发一个随机 token 放进隐藏字段；提交时校验并**立即作废**。
+    跨站页面拿不到 token，因此无法借受害者的浏览器驱动登录表单
+    （修的是报告里的 A-03；也顺带切断了 A-01 那条「借浏览器刷失败把别人锁死」的路径）。
+    """
+
+    def __init__(self, ttl=CSRF_TTL):
+        self._lock = threading.Lock()
+        self._ttl = ttl
+        self._tokens = {}
+
+    def issue(self):
+        token = secrets.token_urlsafe(32)
+        now = time.time()
+        with self._lock:
+            if len(self._tokens) > 512:
+                for stale in [k for k, exp in self._tokens.items() if now >= exp]:
+                    self._tokens.pop(stale, None)
+            self._tokens[token] = now + self._ttl
+        return token
+
+    def consume(self, token):
+        """校验并作废；通过返回 True。"""
+        if not token:
+            return False
+        now = time.time()
+        with self._lock:
+            exp = self._tokens.pop(token, None)
+        return bool(exp) and now < exp
 
 
 # --------------------------------------------------------------------------- #
@@ -1021,6 +1335,9 @@ def build_server(port, settings, secret):
     httpd.secret = secret
     httpd.ui_root = ui_dir()
     httpd.login_guard = LoginGuard()
+    httpd.csrf_guard = CsrfGuard()
+    httpd.session_store = SessionStore()
+    httpd.qr_proxy = QrProxy()
     return httpd
 
 
@@ -2424,9 +2741,9 @@ fnos-qrcode.fpk                    ← gzip 压缩的 tar
 
 | 属性 | 值 |
 | --- | --- |
-| 大小 | `79375` B |
-| MD5 | `f60bb5193bf12de0949a2d4179945af3` |
-| SHA-256 | `7db81d96a0ef5f0e1fb7d4c74d57bf7eba9c8ddc5058c8139dcc7ad8be1daa49` |
+| 大小 | `85225` B |
+| MD5 | `49ec1b657798f6a23e80d6ff8c892b33` |
+| SHA-256 | `e5248fb7622db13692daa40f2818e95c58e70157f7295c38b4f69cc6c0c437ef` |
 
 ### 校验脚本
 
@@ -2466,6 +2783,8 @@ for item in inner.getmembers():
 
 - `fnpack build` 打包成功，`manifest.checksum` 与 `app.tgz` 的 MD5 一致
 - 外层条目与飞牛真机已安装应用的结构完全一致
+- 包内 `app/server/app.py` 的 `APPVERSION` 与 `manifest` 的 `version` 一致（当前均为 `1.0.3`）
+- 包内 `app/ui/index.html` 与仓库根 `index.html` 字节一致（构建脚本第 1 步同步）
 
 ---
 
@@ -2533,6 +2852,31 @@ sudo appcenter-cli start fnos-qrcode
 | 到期后再失败一次 | 计数清零、重新给满额机会 | ✅ 「还可尝试 4 次」 |
 | 正确密码 | 登录成功并清零 | ✅ `302` + 下发 `qr_session`；`blocked() == 0` |
 
+**v1.0.3 依据第三轮渗透测试报告的修复验证**（真机 `192.168.x.x:12990`，
+原始 TCP socket 协议测试 + Chrome 无头浏览器；锁相关用例临时关闭私网豁免，验完已还原）
+
+| 报告条目 | 验证内容 | 结果 |
+| --- | --- | --- |
+| 前提 | `/`、`/index.html`、`/config`、`/favicon.ico`、不存在的路径 | ✅ 全部 `302 → /login`（鉴权先于文件解析） |
+| 绕过测试 | 12 个路径规范化变体 + 7 种请求头伪造 + 6 种 Cookie 伪造 | ✅ 无一绕过 |
+| A-01 | 8 个假用户名连续失败 | ✅ 真实用户名仍可提交，未被拖累 |
+| A-01 | 同一用户名第 5 次失败 | ✅ `429`，`data-sec="120"` |
+| A-01 | 锁定期内再提交 | ✅ 剩余 117 秒，**未重置回 120** |
+| A-01 | 锁定后换用户名 | ✅ `401`（锁只针对该用户名） |
+| A-01 | 等 116 秒后提交 | ✅ 计数清零、重新 `401`；页面提示消失、按钮恢复 |
+| A-02 | 失败提示文案 | ✅ 统一「用户名或密码不正确」，无「还可尝试」 |
+| A-03 | 无 token / token 二次使用 | ✅ 均 `403`；登录页下发一次性 token 且不下发 Cookie |
+| §5 | 登出后用旧 Cookie | ✅ `302 → /login` |
+| F-02 | JSZip SRI | ✅ 带 `integrity` 加载成功 |
+| F-04 | 安全响应头 | ✅ CSP / X-Frame-Options / Referrer-Policy / nosniff 齐全 |
+| R2-01 | 单行 9 KB 请求头 | ✅ `431`（原来是静默丢弃） |
+| R2-02 | HTTP/0.9 简写请求 | ✅ `505`（原来会被正常处理） |
+| R2-03 | 非法 / 缺失 Host、`Content-Length: 100000` | ✅ `400` / `400` / `413` |
+| 入口 | fnOS 桌面图标点击 | ✅ 新窗口打开 `…:12990/login`，`X-Frame-Options: DENY` 不影响入口 |
+| CSP | 页面加载 / JSZip / 出码 / zip / 历史缩略图 | ✅ 无 CSP 拦截、无 JS 错误 |
+| 代理 | `/qr` 正常 / 缓存 / 参数校验 / 上游 502 回落 | ✅ 缺参 `400`、超长 `400`、注入被中和、缓存字节一致 |
+| 下载 | 打包下载 zip | ✅ 修复前超时（CORS）→ 修复后 **3374 B 成功**，zip 内 3 个 PNG 正常 |
+
 ---
 
 ## 8. 实现要点与踩坑记录
@@ -2558,11 +2902,17 @@ sudo appcenter-cli start fnos-qrcode
 ### 8.2 认证实现
 
 - 密码以 `pbkdf2_sha256`（20 万次迭代 + 16 字节随机盐）存哈希，**明文不落盘、不进日志**
-- 登录成功下发 HMAC-SHA256 签名 Cookie（`qr_session`，7 天有效）
+- 登录成功下发 HMAC-SHA256 签名 Cookie（`qr_session`，7 天有效），带 `HttpOnly` + `SameSite=Lax`
 - 会话密钥由**密码哈希派生**，不额外落盘 —— 这样服务进程完全不需要写配置目录，
   避开「安装脚本以 root 运行、应用以 package 运行」的权限不一致问题；副作用是改密码会让已登录会话失效（符合预期）
-- 登录失败限流：同一 IP 连续失败 5 次锁定 **120 秒**（v1.0.2 起，原为 60 秒）；
+- 登出会把该 token 记进进程内吊销表（`SessionStore`），复制走的 Cookie 立刻失效
+- 登录表单带**一次性 CSRF 令牌**（`CsrfGuard`，30 分钟有效，提交即作废），
+  服务端保存、不引入预认证 Cookie，登录页依然不下发任何 Cookie
+- 登录失败限流（`LoginGuard`）：计数键是 **(来源 IP, 用户名)**，连续失败 5 次锁定 **120 秒**
+  （v1.0.2 起时长由 60 秒改为 120 秒，v1.0.3 起粒度由纯 IP 改为 IP+用户名）；
   锁定提示里的秒数由页面内联脚本按秒递减，归零后自动隐藏提示并恢复登录按钮
+- 错误提示统一为「用户名或密码不正确」，不透露剩余可尝试次数
+- `LOGIN_LOCK_TRUSTED_PREFIXES` 里的来源（回环 / 私网 / 链路本地）不做锁定
 - 生命周期脚本用 `--pass-stdin` 通过管道传密码，避免密码出现在 `ps` 命令行里
 
 ### 8.3 踩坑记录（都已修复）
@@ -2667,13 +3017,83 @@ sudo appcenter-cli start fnos-qrcode
    `blocked()`，即使脚本被绕过也照样拒绝。锁定状态存在进程内存里（重启即清空），
    这是为了不写盘、不依赖运行用户对配置目录的写权限。
 
+9. **「打包下载 zip」在任何真实部署上都不工作**（v1.0.3 修复，报告里没有、验证时发现的）
+
+   **现象**：在 NAS 上（`http://192.168.x.x:12990/`）生成二维码，预览正常出图，
+   但点「打包下载」没有任何反应；控制台报：
+   `Access to fetch at 'https://api.2dcode.biz/v1/create-qr-code…' from origin
+   'http://192.168.x.x:12990' has been blocked by CORS policy:
+   No 'Access-Control-Allow-Origin' header is present`，
+   页面提示「当前环境拦截了跨域下载，已在新窗口打开图片，右键另存即可」。
+
+   **根因**：草料开放平台那个接口的 CORS 策略是**只对 `localhost` / `127.0.0.1`
+   回 `Access-Control-Allow-Origin`**。实测（带不同 `Origin` 请求头）：
+
+   | 请求携带的 Origin | 上游返回的 `Access-Control-Allow-Origin` |
+   | --- | --- |
+   | `http://127.0.0.1:18752` | `http://127.0.0.1:18752`（放行） |
+   | `http://localhost:5173` | `http://localhost:5173`（放行） |
+   | `http://192.168.x.x:12990` | 无 |
+   | `http://192.168.x.x:12990` | 无 |
+   | `https://example.com` | 无 |
+
+   也就是说：**本机开发时一切正常，一旦装到 NAS 上从局域网访问，`fetch` 必定被拦**。
+   （`<img>` 加载不受 CORS 限制，所以「预览出图」一直是好的，掩盖了这个问题；
+   单张下载靠 `window.open` 兜底也看不出来，只有 zip 打包需要真正读字节时才会暴露。）
+   早期为解决「opaque 响应」问题加的 `cache: 'no-store'` + 换 URL 重试，
+   治的是另一个病，对 CORS 无能为力。
+
+   **修复**（v1.0.3）：加同源代理 `GET /qr`，由服务端转发上游：
+
+   - 上游主机**写死在代码里**（`QR_UPSTREAM`），请求参数无法指定地址 → 杜绝 SSRF
+   - `data` 限长 1024、`size` 必须匹配 `\d{1,4}x\d{1,4}` 且 ≤1024，
+     再用 `urlencode` 拼装 → 杜绝参数注入
+   - 响应限类型（必须 `image/*`）、限体积（2 MB），按 `(data, size)` 做进程内缓存
+   - 前端优先走 `/qr`，任一张图失败就回落到直连（每张只回落一次），
+     静态部署 / NAS 无外网时行为与以前一致
+   - `/qr` 位于鉴权之后，未登录同样 `302 /login`
+
+   顺带把 CSP 的 `connect-src` 收紧为 `'self'`（`img-src` 保留第三方域给回落用）。
+
+   **实测**：修复前 zip 下载超时（落到 `window.open` 兜底）；修复后同一台机器
+   4 张图出图 + **打包下载成功 3374 B**，无失败请求。
+
+10. **登录锁定的粒度与信息泄露**（第三轮渗透测试 A-01 / A-02 / A-03，v1.0.3 修复）
+
+    **A-01（中危）失败计数不区分用户名**：计数只绑来源 IP，
+    攻击者**不需要知道任何有效用户名**，用 `nobody-0…nobody-7` 这样的假用户名连续失败 5 次，
+    就能把该来源的登录入口整个锁死。修复：计数键改为 `(IP, 用户名)` 二元组 ——
+    假用户名只消耗自己的配额；恶意刷某个具体账号仍会锁该账号，但不再「一人被刷、全员被挡」。
+    同时按用户选择加了**私网来源豁免**（`LOGIN_LOCK_TRUSTED_PREFIXES`），
+    避免家用 NAS 把自己锁在门外。
+
+    > 副作用：局域网内测不出锁定效果（这是设计如此）。
+    > 本次验证是把该常量临时改成 `()` 后重启应用做的，验完已还原。
+
+    **A-02（低危）提示泄露剩余次数**：原来会回「还可尝试 4 次」「59 秒后重试」。
+    修复：错误提示统一为「用户名或密码不正确」，不再透露次数。
+    **锁定倒计时按用户要求保留并改为动态递减**——这里与报告建议存在取舍：
+    报告主张完全模糊化，用户明确要求看到秒数，最终只收敛掉「剩余次数」这部分泄露，
+    倒计时作为可用性提示保留。
+
+    **A-03（低危）登录表单无 CSRF Token**：单纯登录 CSRF 危害有限，
+    但结合 A-01 可以「借受害者浏览器不断触发失败把他锁死」。
+    修复：加服务端一次性令牌（`CsrfGuard`），`GET /login` 下发隐藏字段，
+    提交即作废；不引入预认证 Cookie，登录页依然不下发任何 Cookie。
+
+    **§5 待测项「登出后会话是否真正失效」**：实测**旧 Cookie 登出后仍可访问**（无状态签名的固有问题）。
+    修复：加进程内吊销表（`SessionStore`），登出即吊销该 token。
+
 ### 8.4 前端相关（`index.html`）
 
-- 二维码由草料开放平台公开接口实时生成，**无需 API key**：
-  `GET https://api.2dcode.biz/v1/create-qr-code?data=<内容>&size=400x400`（返回 PNG，带 CORS 头）
+- 二维码由草料开放平台公开接口生成，**无需 API key**：
+  `GET https://api.2dcode.biz/v1/create-qr-code?data=<内容>&size=400x400`（返回 PNG）
+- **v1.0.3 起改走同源代理 `/qr`**（原因见 8.3 第 9 条）：前端优先请求 `qr?data=…&size=…`，
+  由服务端转发；代理不可用时自动回落到直连（每张图只回落一次，之后本会话都用直连）
 - 批量下载曾失败：预览用 `<img>` 加载会往缓存写一条 *opaque* 响应，
   而下载用 `fetch(url, {cache:'force-cache'})` 会复用那条响应，opaque 响应通不过 CORS 校验。
   修复：改用 `cache: 'no-store'`，失败时追加随机参数换 URL 重试，最后兜底 `window.open`
+- 第三方脚本 JSZip（jsDelivr）带 `integrity`（SRI）+ `crossorigin` + `referrerpolicy`
 - 支持 `.txt / .csv / .tsv` 导入，CSV 自动识别分隔符、支持引号字段、
   UTF-8 失败回退 GBK、自动去 BOM；多列时可按列导入并忽略表头
 

@@ -29,6 +29,7 @@ import hmac
 import json
 import mimetypes
 import os
+import re
 import secrets
 import signal
 import socket
@@ -37,10 +38,11 @@ import threading
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote_plus
+from urllib.parse import parse_qs, unquote_plus, urlencode
+from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.0.2'
+APPVERSION = '1.0.3'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
@@ -48,6 +50,40 @@ SESSION_TTL = 7 * 24 * 3600          # 7 天
 PBKDF2_ITERATIONS = 200_000
 LOGIN_MAX_FAIL = 5
 LOGIN_LOCK_SECONDS = 120
+CSRF_TTL = 30 * 60                   # 登录表单 token 有效期（秒）
+MAX_BODY = 64 * 1024                 # POST body 上限
+MAX_HEADER_LINE = 8192               # 单行请求头上限（默认 65536 太宽松）
+QR_UPSTREAM = 'https://api.2dcode.biz/v1/create-qr-code'
+QR_MAX_DATA = 1024                   # 单个二维码内容长度上限
+QR_MAX_BYTES = 2 * 1024 * 1024       # 上游图片体积上限
+QR_CACHE_MAX = 512                   # 内存里缓存的二维码张数
+
+# 失败计数按「来源 + 用户名」绑定：攻击者用伪造用户名刷失败，不会锁死别人的登录入口。
+# 下面这些来源被视为可信网络，不做锁定（家用 NAS 场景避免把自己锁在门外）。
+# 需要彻底关闭该豁免时，把元组清空即可：LOGIN_LOCK_TRUSTED_PREFIXES = ()
+LOGIN_LOCK_TRUSTED_PREFIXES = (
+    '127.', '::1', '10.', '192.168.', '172.16.', '172.17.', '172.18.', '172.19.',
+    '172.20.', '172.21.', '172.22.', '172.23.', '172.24.', '172.25.', '172.26.',
+    '172.27.', '172.28.', '172.29.', '172.30.', '172.31.', 'fe80:', 'fc', 'fd',
+)
+
+# 前端是单文件页面（内联 script/style），并会从 jsDelivr 取 JSZip、
+# 从 api.2dcode.biz 取二维码图片，所以必须放行这三处，其余一律 'self'。
+CSP = '; '.join((
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline'",
+    # img-src 仍保留第三方域：前端在代理不可用时会回落到直连 <img>
+    "img-src 'self' data: blob: https://api.2dcode.biz",
+    # connect-src 收紧为 'self'：跨域 fetch 在真实域名下本来就被 CORS 拦，
+    # 现在二维码统一走同源 /qr 代理，这里不再需要放行任何第三方
+    "connect-src 'self'",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+))
 
 HERE = os.path.dirname(os.path.abspath(__file__))     # <app>/server
 APP_DIR = os.path.dirname(HERE)                       # <app>
@@ -243,6 +279,7 @@ LOGIN_PAGE = """<!DOCTYPE html>
 </style></head>
 <body>
   <form class="box" method="post" action="/login">
+    __CSRF__
     <div class="logo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="2.5" y="2.5" width="8" height="8" rx="1.4" fill="#1f2937"/>
@@ -335,7 +372,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(body)))
+        # ---- 安全响应头（报告 F-04）----
         self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+        self.send_header('Content-Security-Policy', CSP)
         # 一律短连接：请求体可能被截断，长连接会串包
         self.send_header('Connection', 'close')
         self.close_connection = True
@@ -344,6 +386,87 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != 'HEAD' and body:
             self.wfile.write(body)
+
+    # ---- 请求层防护（报告 R2-01 / R2-02 / R2-03）----
+    def handle_one_request(self):
+        """拒绝 HTTP/0.9 简写请求；请求行过长给明确的 414 而不是静默断连。
+
+        其余逻辑与 BaseHTTPRequestHandler.handle_one_request 保持一致。
+        """
+        try:
+            self.raw_requestline = self.rfile.readline(65537)
+            if len(self.raw_requestline) > 65536:
+                self.requestline = ''
+                self.request_version = ''
+                self.command = ''
+                self.send_error(HTTPStatus.REQUEST_URI_TOO_LONG)
+                return
+            if not self.raw_requestline:
+                self.close_connection = True
+                return
+            if not self.parse_request():
+                # parse_request 已回过错误响应
+                return
+            if self.request_version not in ('HTTP/1.0', 'HTTP/1.1'):
+                # 无版本号的 HTTP/0.9 简写请求（报告 R2-02）
+                self.send_error(HTTPStatus.HTTP_VERSION_NOT_SUPPORTED,
+                                'HTTP Version Not Supported')
+                self.close_connection = True
+                return
+            name = 'do_' + self.command
+            if not hasattr(self, name):
+                self.send_error(HTTPStatus.NOT_IMPLEMENTED,
+                                'Unsupported method (%r)' % self.command)
+                return
+            getattr(self, name)()
+            self.wfile.flush()
+        except (TimeoutError, socket.timeout) as err:
+            self.log_error('Request timed out: %r', err)
+            self.close_connection = True
+
+    def _oversized_header(self):
+        """逐行检查请求头长度：超限直接 431，避免被静默丢弃（报告 R2-01）。"""
+        for line in str(self.headers).splitlines():
+            if len(line) > MAX_HEADER_LINE:
+                return True
+        return False
+
+    def _bad_host(self):
+        """Host 必须是 host[:port] 形态（IPv6 带方括号）。缺失或含异常字符一律 400。"""
+        host = self.headers.get('Host')
+        if not host:
+            return True
+        allowed = set('abcdefghijklmnopqrstuvwxyz'
+                      'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-:[]_')
+        return not set(host) <= allowed or len(host) > 255
+
+    def _guard_request(self):
+        """返回 True 表示请求已（带着错误响应）被拒。"""
+        if self._oversized_header():
+            self._send(HTTPStatus.REQUEST_HEADER_FIELDS_TOO_LARGE,
+                       'request header too large', 'text/plain; charset=utf-8')
+            return True
+        if self._bad_host():
+            self._send(HTTPStatus.BAD_REQUEST, 'bad host', 'text/plain; charset=utf-8')
+            return True
+        return False
+
+    def _read_form(self):
+        """按上限读取并解析 POST 表单；超限返回 None（调用方回 413）。"""
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+        except (TypeError, ValueError):
+            length = -1
+        if length < 0 or length > MAX_BODY:
+            return None
+        raw = self.rfile.read(length).decode('utf-8', 'replace') if length else ''
+        form = {}
+        for pair in raw.split('&'):
+            if '=' in pair:
+                key, _, value = pair.partition('=')
+                # unquote_plus 同时处理 + 和 %XX
+                form[unquote_plus(key)] = unquote_plus(value)
+        return form
 
     def _redirect(self, location, extra=None):
         headers = {'Location': location, 'Cache-Control': 'no-store'}
@@ -362,15 +485,21 @@ class Handler(BaseHTTPRequestHandler):
     def _current_user(self):
         if not self._auth_on():
             return 'anonymous'
-        return parse_session(self.server.secret, self._cookie(SESSION_COOKIE))
+        token = self._cookie(SESSION_COOKIE)
+        if not token or self.server.session_store.revoked(token):
+            return None
+        return parse_session(self.server.secret, token)
 
     # ---- 路由 ----
     def do_HEAD(self):
         self.do_GET()
 
     def do_GET(self):
+        if self._guard_request():
+            return
         path = self._path()
         if path == '/logout':
+            self.server.session_store.revoke(self._cookie(SESSION_COOKIE))
             self._redirect('/login' if self._auth_on() else '/',
                            {'Set-Cookie': '%s=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax' % SESSION_COOKIE})
             return
@@ -381,7 +510,9 @@ class Handler(BaseHTTPRequestHandler):
             if self._current_user():
                 self._redirect('/')
                 return
-            locked = self.server.login_guard.blocked(self.client_address[0])
+            # 锁定是按「来源 + 用户名」记账的，刷新时还不知道用户名，
+            # 所以这里展示的是该来源下某个账户的剩余时间（取最大的那个）。
+            locked = self.server.login_guard.blocked_any(self.client_address[0])
             block = LOGIN_LOCK_NOTICE.replace('__SEC__', str(locked)) if locked > 0 else ''
             self._render_login(block, HTTPStatus.OK)
             return
@@ -391,9 +522,32 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect('/login')
             return
 
+        if path == '/qr':
+            self._serve_qr()
+            return
+
         self._serve_static(path)
 
+    def _serve_qr(self):
+        """同源二维码代理：/qr?data=...&size=400x400"""
+        raw_query = self.path.split('?', 1)[1] if '?' in self.path else ''
+        query = parse_qs(raw_query, keep_blank_values=True)
+        data = (query.get('data') or [''])[0]
+        size = (query.get('size') or [''])[0]
+        if not self.server.qr_proxy.valid(data, size):
+            self._send(HTTPStatus.BAD_REQUEST, 'bad qr request', 'text/plain; charset=utf-8')
+            return
+        try:
+            ctype, blob = self.server.qr_proxy.get(data, size)
+        except Exception as err:                      # noqa: BLE001 —— 上游任何异常都回 502
+            sys.stderr.write('[qr] upstream failed: %r\n' % (err,))
+            self._send(HTTPStatus.BAD_GATEWAY, 'upstream error', 'text/plain; charset=utf-8')
+            return
+        self._send(HTTPStatus.OK, blob, ctype, {'Cache-Control': 'public, max-age=86400'})
+
     def do_POST(self):
+        if self._guard_request():
+            return
         path = self._path()
         if path != '/login':
             self._send(HTTPStatus.NOT_FOUND, 'not found', 'text/plain; charset=utf-8')
@@ -402,48 +556,54 @@ class Handler(BaseHTTPRequestHandler):
             self._redirect('/')
             return
 
-        length = min(int(self.headers.get('Content-Length') or 0), 64 * 1024)
-        raw = self.rfile.read(length).decode('utf-8', 'replace') if length else ''
-        form = {}
-        for pair in raw.split('&'):
-            if '=' in pair:
-                key, _, value = pair.partition('=')
-                # unquote_plus 同时处理 + 和 %XX
-                form[unquote_plus(key)] = unquote_plus(value)
+        form = self._read_form()
+        if form is None:
+            self._send(HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                       'request body too large', 'text/plain; charset=utf-8')
+            return
+
+        # 一次性 CSRF 令牌（报告 A-03）：跨站页面拿不到，提交后立即作废
+        if not self.server.csrf_guard.consume(form.get('csrf_token', '')):
+            self._fail('表单已过期，请重新输入', HTTPStatus.FORBIDDEN)
+            return
 
         ip = self.client_address[0]
         guard = self.server.login_guard
-        locked = guard.blocked(ip)
+        auth = self.server.settings['auth']
+        username = form.get('username', '')
+        password = form.get('password', '')
+
+        locked = guard.blocked(ip, username)
         if locked > 0:
             self._fail_locked(locked)
             return
 
-        auth = self.server.settings['auth']
-        username = form.get('username', '')
-        password = form.get('password', '')
         ok = (hmac.compare_digest(username, auth['username'])
               and verify_password(password, auth['password']))
         if not ok:
-            guard.fail(ip)
-            locked = guard.blocked(ip)
+            guard.fail(ip, username)
+            locked = guard.blocked(ip, username)
             if locked > 0:
                 self._fail_locked(locked)
             else:
-                remain = max(0, LOGIN_MAX_FAIL - guard.count(ip))
-                self._fail('用户名或密码不正确，还可尝试 %d 次' % remain)
+                # 不再透露「还剩几次」（报告 A-02）
+                self._fail('用户名或密码不正确')
             return
 
-        guard.reset(ip)
+        guard.reset(ip, username)
         token = make_session(self.server.secret, auth['username'])
         self._redirect('/', {'Set-Cookie': '%s=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax'
                                           % (SESSION_COOKIE, token, SESSION_TTL)})
 
     def _render_login(self, block, status):
-        page = LOGIN_PAGE.replace('__ERROR__', block)
+        page = (LOGIN_PAGE
+                .replace('__CSRF__', '<input type="hidden" name="csrf_token" value="%s">'
+                         % self.server.csrf_guard.issue())
+                .replace('__ERROR__', block))
         self._send(status, page, 'text/html; charset=utf-8', {'Cache-Control': 'no-store'})
 
-    def _fail(self, message):
-        self._render_login('<div class="err">%s</div>' % message, HTTPStatus.UNAUTHORIZED)
+    def _fail(self, message, status=HTTPStatus.UNAUTHORIZED):
+        self._render_login('<div class="err">%s</div>' % message, status)
 
     def _fail_locked(self, seconds):
         self._render_login(LOGIN_LOCK_NOTICE.replace('__SEC__', str(seconds)),
@@ -490,52 +650,204 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class LoginGuard(object):
-    """极简登录失败限流（进程内）
+    """登录失败限流（进程内）
 
-    规则：同一 IP 连续失败 LOGIN_MAX_FAIL 次后，锁定 LOGIN_LOCK_SECONDS 秒。
-    - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口（否则等待再试就永远是「重新开始倒数」）；
-    - 锁定到期后失败计数清零，重新给满额机会。
+    计数键是 **(来源 IP, 用户名)**，不是单纯的 IP：
+
+    - 攻击者用任意伪造用户名连续失败，只会消耗「自己那个用户名」的配额，
+      不会把管理员真正在用的用户名锁死（修的是报告里的 A-01：锁定型 DoS）；
+    - 只要有一个**正确**的用户名 + 错误密码的组合被反复尝试，那个用户名仍会被锁，
+      这是限流应有的行为；但由于锁定粒度细到具体账户，不再「一人被刷、全员被挡」；
+    - 锁定期内的再次提交只累加计数，**不会延长**锁定窗口
+      （否则「等一会儿再试」等于给自己续命，倒计时看起来永远是同一个数）；
+    - 锁定到期后计数清零，重新给满额机会；
+    - `LOGIN_LOCK_TRUSTED_PREFIXES` 里的来源（回环 / 私网 / 链路本地）不做锁定，
+      避免家用 NAS 场景把管理员自己锁在门外。
     """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._state = {}
 
-    def info(self, ip):
-        """返回 (剩余锁定秒数, 已累计失败次数)；锁定已过期时顺带清零。"""
+    @staticmethod
+    def trusted(ip):
+        """来源是否属于「不锁定」的可信网络。"""
+        return bool(ip) and (ip == '::1' or ip.startswith(LOGIN_LOCK_TRUSTED_PREFIXES))
+
+    def key(self, ip, username):
+        return (ip, username or '')
+
+    def info(self, ip, username):
+        """返回 (剩余锁定秒数, 该用户名已累计失败次数)；锁定已过期时顺带清零。"""
+        key = self.key(ip, username)
         with self._lock:
-            count, until = self._state.get(ip, (0, 0))
+            count, until = self._state.get(key, (0, 0))
             now = time.time()
             if until and now >= until:
-                self._state.pop(ip, None)
+                self._state.pop(key, None)
                 return 0, 0
             remain = int(until - now + 0.5) if until else 0
             return (remain if remain > 0 else 0), count
 
-    def blocked(self, ip):
-        return self.info(ip)[0]
+    def blocked(self, ip, username):
+        return self.info(ip, username)[0]
 
-    def count(self, ip):
-        return self.info(ip)[1]
-
-    def fail(self, ip):
+    def blocked_any(self, ip):
+        """该来源下**任意**账户还剩多少秒锁定（用于登录页首次打开时的提示）。"""
+        now = time.time()
+        best = 0
         with self._lock:
-            count, until = self._state.get(ip, (0, 0))
+            for (key_ip, _user), (_count, until) in self._state.items():
+                if key_ip != ip or not until:
+                    continue
+                remain = int(until - now + 0.5)
+                if remain > best:
+                    best = remain
+        return best
+
+    def fail(self, ip, username):
+        """记一次失败。可信来源只计数、不锁定。"""
+        key = self.key(ip, username)
+        with self._lock:
+            count, until = self._state.get(key, (0, 0))
             now = time.time()
             if until and now < until:
                 # 已在锁定期：只累加计数，保持原锁定窗口
-                self._state[ip] = (count + 1, until)
+                self._state[key] = (count + 1, until)
                 return
             count += 1
-            until = now + LOGIN_LOCK_SECONDS if count >= LOGIN_MAX_FAIL else 0
-            self._state[ip] = (count, until)
-            if len(self._state) > 512:          # 轻量清理，避免长期累积
-                for key in [k for k, v in self._state.items() if v[1] and now >= v[1]]:
-                    self._state.pop(key, None)
+            if count >= LOGIN_MAX_FAIL and not self.trusted(ip):
+                until = now + LOGIN_LOCK_SECONDS
+            else:
+                until = 0
+            self._state[key] = (count, until)
+            if len(self._state) > 1024:          # 轻量清理，避免长期累积
+                for stale in [k for k, v in self._state.items()
+                              if not v[1] or now >= v[1]]:
+                    self._state.pop(stale, None)
 
-    def reset(self, ip):
+    def reset(self, ip, username):
         with self._lock:
-            self._state.pop(ip, None)
+            self._state.pop(self.key(ip, username), None)
+
+
+class QrProxy(object):
+    """二维码同源代理
+
+    第三方接口只对 localhost / 127.0.0.1 回 `Access-Control-Allow-Origin`，
+    从局域网 IP 或域名访问时浏览器的 fetch 必然被 CORS 拦掉——「打包下载 zip」因此
+    在真实部署上必定降级（实测：NAS 上 zip 下载超时，落到 window.open 兜底）。
+    前端改为请求同源的 /qr，由服务端转发，同时把二维码收进 CSP 的 'self'。
+
+    安全要点：上游主机写死在 QR_UPSTREAM（不可由请求指定，杜绝 SSRF）；
+    data / size 严格校验后用 urlencode 拼装，杜绝参数注入；响应限体积、限类型。
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._cache = {}
+
+    @staticmethod
+    def valid(data, size):
+        if not data or len(data) > QR_MAX_DATA:
+            return False
+        if not re.fullmatch(r'\d{1,4}x\d{1,4}', size or ''):
+            return False
+        return max(int(v) for v in size.split('x')) <= 1024
+
+    def get(self, data, size):
+        """返回 (content_type, bytes)；失败抛异常。"""
+        key = (data, size)
+        with self._lock:
+            hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+
+        params = urlencode({'data': data, 'size': size})
+        req = UrlRequest(QR_UPSTREAM + '?' + params,
+                         headers={'User-Agent': '%s/%s' % (APPNAME, APPVERSION)})
+        with url_open(req, timeout=15) as resp:
+            ctype = (resp.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+            if resp.status != 200 or not ctype.startswith('image/'):
+                raise ValueError('upstream %s %s' % (resp.status, ctype or '-'))
+            blob = resp.read(QR_MAX_BYTES + 1)
+        if not blob or len(blob) > QR_MAX_BYTES:
+            raise ValueError('upstream size %d' % len(blob))
+
+        with self._lock:
+            if len(self._cache) >= QR_CACHE_MAX:
+                self._cache.clear()
+            self._cache[key] = (ctype, blob)
+        return (ctype, blob)
+
+
+class SessionStore(object):
+    """登出后作废对应会话（进程内吊销表）
+
+    会话本身仍是 HMAC 签名的无状态 Cookie，不写盘；这里只额外记住「已登出的 token」，
+    让 logout 之后复制走的 Cookie 也立即失效（报告 §5 的待测项：登出是否真正失效）。
+    已知取舍：吊销表在进程内存里，重启应用即清空；改密码会让所有会话失效（密钥派生自密码哈希）。
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._revoked = {}
+
+    def revoke(self, token):
+        if not token:
+            return
+        now = time.time()
+        with self._lock:
+            self._revoked[token] = now + SESSION_TTL
+            if len(self._revoked) > 256:
+                for stale in [k for k, exp in self._revoked.items() if now >= exp]:
+                    self._revoked.pop(stale, None)
+
+    def revoked(self, token):
+        if not token:
+            return True
+        now = time.time()
+        with self._lock:
+            exp = self._revoked.get(token)
+            if exp is None:
+                return False
+            if now >= exp:
+                self._revoked.pop(token, None)
+                return False
+            return True
+
+
+class CsrfGuard(object):
+    """登录表单的一次性令牌（服务端保存，不依赖预认证 Cookie）
+
+    GET /login 时签发一个随机 token 放进隐藏字段；提交时校验并**立即作废**。
+    跨站页面拿不到 token，因此无法借受害者的浏览器驱动登录表单
+    （修的是报告里的 A-03；也顺带切断了 A-01 那条「借浏览器刷失败把别人锁死」的路径）。
+    """
+
+    def __init__(self, ttl=CSRF_TTL):
+        self._lock = threading.Lock()
+        self._ttl = ttl
+        self._tokens = {}
+
+    def issue(self):
+        token = secrets.token_urlsafe(32)
+        now = time.time()
+        with self._lock:
+            if len(self._tokens) > 512:
+                for stale in [k for k, exp in self._tokens.items() if now >= exp]:
+                    self._tokens.pop(stale, None)
+            self._tokens[token] = now + self._ttl
+        return token
+
+    def consume(self, token):
+        """校验并作废；通过返回 True。"""
+        if not token:
+            return False
+        now = time.time()
+        with self._lock:
+            exp = self._tokens.pop(token, None)
+        return bool(exp) and now < exp
 
 
 # --------------------------------------------------------------------------- #
@@ -548,6 +860,9 @@ def build_server(port, settings, secret):
     httpd.secret = secret
     httpd.ui_root = ui_dir()
     httpd.login_guard = LoginGuard()
+    httpd.csrf_guard = CsrfGuard()
+    httpd.session_store = SessionStore()
+    httpd.qr_proxy = QrProxy()
     return httpd
 
 

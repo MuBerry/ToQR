@@ -453,20 +453,37 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
+        integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 (function () {
   'use strict';
 
   /* ============ 草料开放平台 · 二维码生成接口 ============ */
   const API_BASE = 'https://api.2dcode.biz/v1/create-qr-code';
+  // 同源代理：第三方接口只对 localhost / 127.0.0.1 回 Access-Control-Allow-Origin，
+  // 从局域网 IP 或域名访问时 fetch 必然被 CORS 拦掉（打包下载会因此失效）。
+  // 所以优先请求服务端的 qr 端点，只有它不可用（静态部署 / 服务端无外网）才回落到直连。
+  const PROXY_BASE = 'qr';
   const QR_SIZE = 400;          // 生成尺寸（像素）
   const MAX_ITEMS = 200;        // 单次最多生成数量
   const HISTORY_KEY = 'qr-batch-history-v1';
   const HISTORY_LIMIT = 8;
+  let useProxy = true;
 
-  function buildQrUrl(text, size) {
-    return API_BASE + '?data=' + encodeURIComponent(text) + '&size=' + size + 'x' + size;
+  function buildQrUrl(text, size, direct) {
+    const q = 'data=' + encodeURIComponent(text) + '&size=' + size + 'x' + size;
+    return (direct || !useProxy ? API_BASE + '?' : PROXY_BASE + '?') + q;
+  }
+
+  // 某张图加载失败就回落到直连（每张只回落一次），之后的图直接走直连
+  function fallbackQrUrl(img, text, size) {
+    if (img.dataset.qrRetried === '1') return false;
+    img.dataset.qrRetried = '1';
+    useProxy = false;
+    img.src = buildQrUrl(text, size, true);
+    return true;
   }
 
   /* ============ DOM ============ */
@@ -570,7 +587,10 @@
         '<div class="txt" title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</div>';
 
       const img = item.querySelector('img');
-      img.addEventListener('error', () => item.classList.add('failed'));
+      img.addEventListener('error', () => {
+        if (fallbackQrUrl(img, text, QR_SIZE)) return;   // 代理不可用 → 换直连再试一次
+        item.classList.add('failed');
+      });
 
       grid.appendChild(item);
     });
@@ -601,18 +621,23 @@
   // 注意：绝对不能用 cache:'force-cache' —— <img> 加载同一个 URL 时会在 HTTP 缓存里
   // 留下一条 opaque 响应，force-cache 会复用它，导致 CORS 校验失败（表现为“全部下载失败”）。
   async function fetchQrBlob(text) {
-    const url = buildQrUrl(text, QR_SIZE);
-    try {
-      const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return await res.blob();
-    } catch (e) {
-      // 兜底：换一个 URL（追加随机参数）彻底绕开任何已缓存的 opaque 响应
-      const bust = url + '&_r=' + Date.now() + Math.random().toString(36).slice(2, 8);
-      const res = await fetch(bust, { mode: 'cors', cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return await res.blob();
+    const urls = useProxy ? [buildQrUrl(text, QR_SIZE), buildQrUrl(text, QR_SIZE, true)]
+                          : [buildQrUrl(text, QR_SIZE)];
+    let lastErr = new Error('no attempt');
+    for (let i = 0; i < urls.length; i++) {
+      for (const suffix of ['', '&_r=' + Date.now() + Math.random().toString(36).slice(2, 8)]) {
+        try {
+          // 兜底时追加随机参数，彻底绕开任何已缓存的 opaque 响应
+          const res = await fetch(urls[i] + suffix, { mode: 'cors', cache: 'no-store' });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return await res.blob();
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      if (i === 0 && useProxy) useProxy = false;   // 代理不可用 → 后面都走直连
     }
+    throw lastErr;
   }
 
   function saveBlob(blob, filename) {
@@ -741,6 +766,8 @@
           '<div class="m">' + formatTime(rec.ts) + ' · 共 ' + rec.count + ' 个二维码</div>' +
         '</div>' +
         '<span class="go">载入</span>';
+      const thumb = li.querySelector('img');
+      thumb.addEventListener('error', () => fallbackQrUrl(thumb, rec.preview, 120));
       li.addEventListener('click', () => {
         inputEl.value = rec.sample.join('\n');
         if (rec.count > rec.sample.length) {
