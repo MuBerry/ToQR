@@ -1,14 +1,14 @@
 appname               = fnos-qrcode
-version               = 1.0.0
+version               = 1.0.1
 display_name          = 二维码批量生成器
 desc                  = 简单高效的二维码批量生成工具。在页面里每行输入一个内容，即可一次性生成对应的二维码，支持文本与网址。<br /><strong>主要能力</strong><br />· 批量生成：一行一条，一次最多 200 个<br />· 多条导入：支持 <code>.txt</code> / <code>.csv</code> / <code>.tsv</code>，也可直接把文件拖到输入框<br />· 实时预览：生成后网格预览，可单张下载或一键打包成 zip<br />· 最近记录：本地保存最近几次生成，点击即可重新载入<br /><strong>关于端口与认证</strong><br />· 服务端口安装时填写，默认 <code>10001</code>，装好后可在应用中心「设置」里修改<br />· 用户认证可选：开启后访问本应用需先登录，安装时和装好后都能调整<br /><strong>数据说明</strong><br />二维码由草料开放平台公开接口实时生成，输入内容只在你自己的浏览器里处理，不会写盘、不会上传。
-changelog              = 1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
+changelog              = 1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
 platform              = all
 source                = thirdparty
 maintainer            = Firlsy
 distributor           = Firlsy
 service_port          = 10001
-checkport             = true
+checkport             = false
 ctl_stop              = true
 install_type          =
 desktop_uidir         = ui

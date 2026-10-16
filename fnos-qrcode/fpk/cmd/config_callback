@@ -41,6 +41,50 @@ find_python() {
   return 1
 }
 
+# ---------- manifest 端口同步 ----------
+# 应用中心在「启用 / 启动」前会检查 manifest 里 service_port 声明的端口是否被占用。
+# 该字段是打包时的静态值，不跟随安装向导或「应用设置」里改的端口，
+# 于是换了端口之后仍会按旧端口报「端口被占用」。这里把已安装的 manifest 同步成真实端口。
+MANIFEST="$(dirname "$TRIM_APPDEST")/manifest"
+
+read_manifest_port() {
+  sed -n 's/^service_port[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" 2>/dev/null | head -1
+}
+
+sync_manifest_port() {
+  local port="$1" cur tmp
+  [ -n "$port" ] || return 0
+  if [ ! -f "$MANIFEST" ]; then
+    log "未找到 $MANIFEST，跳过 manifest 端口同步"
+    return 0
+  fi
+
+  cur="$(read_manifest_port "$MANIFEST")"
+  if [ "$cur" = "$port" ]; then
+    log "manifest 端口已是 $port，无需同步"
+    return 0
+  fi
+
+  if grep -q '^service_port' "$MANIFEST" 2>/dev/null; then
+    tmp="$MANIFEST.tmp.$$"
+    if sed "s|^service_port[[:space:]]*=.*|service_port          = ${port}|" "$MANIFEST" >"$tmp" 2>/dev/null; then
+      # 用 cat 回写以保留原 inode 与权限
+      cat "$tmp" >"$MANIFEST" 2>/dev/null || true
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+  else
+    printf '\nservice_port          = %s\n' "$port" >>"$MANIFEST" 2>/dev/null || true
+  fi
+
+  cur="$(read_manifest_port "$MANIFEST")"
+  if [ "$cur" = "$port" ]; then
+    log "已同步 manifest 的 service_port = $port（应用中心按此端口做占用检查）"
+  else
+    log "警告：无法写入 $MANIFEST，应用中心仍会按旧端口检查；如提示端口被占用，请先确认该端口空闲"
+  fi
+  return 0
+}
+
 mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" 2>/dev/null || true
 
 # ---------- 1. 校验 ----------
@@ -91,7 +135,13 @@ if [ -f "$SETTINGS" ]; then
   fi
 fi
 
-# ---------- 3. 需要时重启 ----------
+# ---------- 3. 让应用中心的端口检查对准真实端口 ----------
+# 没传端口说明端口未变，取当前生效的端口再同步
+EFFECTIVE_PORT="$PORT"
+[ -n "$EFFECTIVE_PORT" ] || EFFECTIVE_PORT="$("$PY" "$APP_PY" --print-port 2>/dev/null | tr -d '[:space:]')"
+sync_manifest_port "$EFFECTIVE_PORT"
+
+# ---------- 4. 需要时重启 ----------
 # 端口与认证都是启动时读取的，改动后必须重启才生效
 if "$SELF_DIR/main" status >/dev/null 2>&1; then
   log "检测到应用正在运行，重启以应用新配置"

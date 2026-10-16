@@ -44,11 +44,12 @@
 
 | 需求 | 实现方式 |
 | --- | --- |
-| 默认端口 `10001` | `manifest` 的 `service_port = 10001` + `wizard/install` 的 `initValue` |
+| 默认端口 `10001` | `wizard/install` 的 `initValue`（`manifest` 里的 `service_port` 仅作声明） |
 | 安装时可指定端口 | 安装向导字段 `wizard_port` → `cmd/install_callback` 写入 `settings.json` |
 | 装好后可调整端口 | 应用中心「运行设置」→ `wizard/config` → `cmd/config_callback` 写入并重启 |
 | 安装时可开启用户认证 | 向导字段 `wizard_auth_enable` / `wizard_auth_user` / `wizard_auth_pass` |
 | 装好后可调整认证 | 同一组字段被 `wizard/config` 复用，留空表示保持原值 |
+| 换端口后不再误报「端口被占用」 | `checkport = false`，并且回调会把已安装 manifest 的 `service_port` 同步成真实端口 |
 
 **技术选型**
 
@@ -62,6 +63,10 @@
 - `app/ui/config` 里桌面入口端口写成 `${wizard_port}` —— 这是应用中心的**运行时变量**，
   桌面图标地址会自动跟随向导里的端口，**改端口不需要重建包**
 - `cmd/main` 启动时用 `app.py --print-port` 读端口，用 `--check` 确认端口真的起来了
+- **注意**：应用中心「启用」前的端口占用检查读的是**已安装 manifest 里的静态
+  `service_port`**，不认 `${wizard_port}`。所以本包把 `checkport` 关掉，
+  并在安装 / 改设置时用 `sync_manifest_port()` 把该字段同步成真实端口。
+  这是 v1.0.1 修掉的那个坑，细节见 8.3 第 5 条。
 
 ---
 
@@ -119,7 +124,7 @@ FPK 工程共 21 个源文件，按职责归类：
 
 | # | 文件 | 行数 | 大小 | 职责 |
 | --- | --- | --- | --- | --- |
-| 1 | `manifest` | 15 | 1637 B | 应用清单：appname/版本/入口/端口/平台 |
+| 1 | `manifest` | 15 | 2104 B | 应用清单：appname/版本/入口/端口/平台 |
 | 2 | `app/ui/config` | 16 | 321 B | 桌面入口 JSON，端口写 `${wizard_port}` |
 | 3 | `config/privilege` | 7 | 107 B | 运行身份：`run-as: package` |
 | 4 | `config/resource` | 5 | 43 B | 资源声明（数据共享为空） |
@@ -129,11 +134,11 @@ FPK 工程共 21 个源文件，按职责归类：
 | 8 | `app/server/app.py` | 611 | 23735 B | 服务端：静态托管 + 端口配置 + 可选认证 |
 | 9 | `cmd/main` | 183 | 4816 B | start / stop / status 入口 |
 | 10 | `cmd/install_init` | 46 | 1601 B | 安装前：Python、端口、密码校验 |
-| 11 | `cmd/install_callback` | 99 | 3329 B | 安装后：落盘配置 + 修权限 |
+| 11 | `cmd/install_callback` | 147 | 5110 B | 安装后：落盘配置 + 修权限 |
 | 12 | `cmd/config_init` | 5 | 131 B | 配置前：空操作 |
-| 13 | `cmd/config_callback` | 106 | 3522 B | 设置保存后：写配置 + 按需重启 |
+| 13 | `cmd/config_callback` | 156 | 5513 B | 设置保存后：写配置 + 按需重启 |
 | 14 | `cmd/upgrade_init` | 12 | 237 B | 升级前：停旧进程 |
-| 15 | `cmd/upgrade_callback` | 43 | 1597 B | 升级后：保留配置、补默认值 |
+| 15 | `cmd/upgrade_callback` | 91 | 3118 B | 升级后：保留配置、补默认值 |
 | 16 | `cmd/uninstall_init` | 12 | 272 B | 卸载前：停进程 |
 | 17 | `cmd/uninstall_callback` | 27 | 893 B | 卸载后：按向导删除 / 保留配置 |
 | 18 | `tools/build_fpk.py` | 228 | 7894 B | 备用打包器（无 fnpack 时） |
@@ -157,18 +162,17 @@ FPK 工程共 21 个源文件，按职责归类：
 ### 4.1 `manifest` —— 应用清单
 
 ```ini
-
 appname               = fnos-qrcode
-version               = 1.0.0
+version               = 1.0.1
 display_name          = 二维码批量生成器
 desc                  = 简单高效的二维码批量生成工具。在页面里每行输入一个内容，即可一次性生成对应的二维码，支持文本与网址。<br /><strong>主要能力</strong><br />· 批量生成：一行一条，一次最多 200 个<br />· 多条导入：支持 <code>.txt</code> / <code>.csv</code> / <code>.tsv</code>，也可直接把文件拖到输入框<br />· 实时预览：生成后网格预览，可单张下载或一键打包成 zip<br />· 最近记录：本地保存最近几次生成，点击即可重新载入<br /><strong>关于端口与认证</strong><br />· 服务端口安装时填写，默认 <code>10001</code>，装好后可在应用中心「设置」里修改<br />· 用户认证可选：开启后访问本应用需先登录，安装时和装好后都能调整<br /><strong>数据说明</strong><br />二维码由草料开放平台公开接口实时生成，输入内容只在你自己的浏览器里处理，不会写盘、不会上传。
-changelog              = 1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
+changelog              = 1.0.1：修复「启用时报端口被占用」。应用中心启动前会拿 manifest 里 service_port 这个静态端口去判断占用，而它不会跟随安装向导 / 应用设置里改的端口，于是在 10001 已被占用的机器上，改任何端口都报「端口被占用」。现在改为 checkport=false（不再用静态端口做占用检查），同时安装与改设置时会把已安装的 manifest 的 service_port 同步成真实端口。<br />1.0.0：首个版本。原生飞牛应用包，支持安装时指定服务端口（默认 10001）、可选开启用户认证，两者装好后均可在应用中心设置里调整。
 platform              = all
 source                = thirdparty
 maintainer            = Firlsy
 distributor           = Firlsy
 service_port          = 10001
-checkport             = true
+checkport             = false
 ctl_stop              = true
 install_type          =
 desktop_uidir         = ui
@@ -1330,7 +1334,6 @@ exit 0
 #### `cmd/install_callback` —— 安装后落盘配置
 
 ```bash
-
 #!/bin/bash
 # 安装完成后：准备运行目录，并把安装向导里填的「服务端口 / 用户认证」落到 settings.json
 set -uo pipefail
@@ -1373,6 +1376,50 @@ find_python() {
     [ -x "$candidate" ] && { echo "$candidate"; return 0; }
   done
   return 1
+}
+
+# ---------- manifest 端口同步 ----------
+# 应用中心在「启用 / 启动」前会检查 manifest 里 service_port 声明的端口是否被占用。
+# 该字段是打包时的静态值，不跟随安装向导或「应用设置」里改的端口，
+# 于是换了端口之后仍会按旧端口报「端口被占用」。这里把已安装的 manifest 同步成真实端口。
+MANIFEST="$(dirname "$TRIM_APPDEST")/manifest"
+
+read_manifest_port() {
+  sed -n 's/^service_port[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" 2>/dev/null | head -1
+}
+
+sync_manifest_port() {
+  local port="$1" cur tmp
+  [ -n "$port" ] || return 0
+  if [ ! -f "$MANIFEST" ]; then
+    log "未找到 $MANIFEST，跳过 manifest 端口同步"
+    return 0
+  fi
+
+  cur="$(read_manifest_port "$MANIFEST")"
+  if [ "$cur" = "$port" ]; then
+    log "manifest 端口已是 $port，无需同步"
+    return 0
+  fi
+
+  if grep -q '^service_port' "$MANIFEST" 2>/dev/null; then
+    tmp="$MANIFEST.tmp.$$"
+    if sed "s|^service_port[[:space:]]*=.*|service_port          = ${port}|" "$MANIFEST" >"$tmp" 2>/dev/null; then
+      # 用 cat 回写以保留原 inode 与权限
+      cat "$tmp" >"$MANIFEST" 2>/dev/null || true
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+  else
+    printf '\nservice_port          = %s\n' "$port" >>"$MANIFEST" 2>/dev/null || true
+  fi
+
+  cur="$(read_manifest_port "$MANIFEST")"
+  if [ "$cur" = "$port" ]; then
+    log "已同步 manifest 的 service_port = $port（应用中心按此端口做占用检查）"
+  else
+    log "警告：无法写入 $MANIFEST，应用中心仍会按旧端口检查；如提示端口被占用，请先确认该端口空闲"
+  fi
+  return 0
 }
 
 # ---------- 1. 目录 ----------
@@ -1429,6 +1476,10 @@ if [ -f "$SETTINGS" ]; then
 fi
 
 log "配置完成：端口=$PORT 用户认证=$AUTH 用户名=$AUTH_USER 配置文件=$SETTINGS"
+
+# ---------- 5. 让应用中心的端口检查对准真实端口 ----------
+sync_manifest_port "$PORT"
+
 exit 0
 ```
 
@@ -1446,7 +1497,6 @@ exit 0
 #### `cmd/config_callback` —— 设置保存后写配置并重启
 
 ```bash
-
 #!/bin/bash
 # 应用中心「设置」保存后：把新的端口 / 用户认证写入配置，并按需重启应用
 set -uo pipefail
@@ -1488,6 +1538,50 @@ find_python() {
     [ -x "$candidate" ] && { echo "$candidate"; return 0; }
   done
   return 1
+}
+
+# ---------- manifest 端口同步 ----------
+# 应用中心在「启用 / 启动」前会检查 manifest 里 service_port 声明的端口是否被占用。
+# 该字段是打包时的静态值，不跟随安装向导或「应用设置」里改的端口，
+# 于是换了端口之后仍会按旧端口报「端口被占用」。这里把已安装的 manifest 同步成真实端口。
+MANIFEST="$(dirname "$TRIM_APPDEST")/manifest"
+
+read_manifest_port() {
+  sed -n 's/^service_port[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$1" 2>/dev/null | head -1
+}
+
+sync_manifest_port() {
+  local port="$1" cur tmp
+  [ -n "$port" ] || return 0
+  if [ ! -f "$MANIFEST" ]; then
+    log "未找到 $MANIFEST，跳过 manifest 端口同步"
+    return 0
+  fi
+
+  cur="$(read_manifest_port "$MANIFEST")"
+  if [ "$cur" = "$port" ]; then
+    log "manifest 端口已是 $port，无需同步"
+    return 0
+  fi
+
+  if grep -q '^service_port' "$MANIFEST" 2>/dev/null; then
+    tmp="$MANIFEST.tmp.$$"
+    if sed "s|^service_port[[:space:]]*=.*|service_port          = ${port}|" "$MANIFEST" >"$tmp" 2>/dev/null; then
+      # 用 cat 回写以保留原 inode 与权限
+      cat "$tmp" >"$MANIFEST" 2>/dev/null || true
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+  else
+    printf '\nservice_port          = %s\n' "$port" >>"$MANIFEST" 2>/dev/null || true
+  fi
+
+  cur="$(read_manifest_port "$MANIFEST")"
+  if [ "$cur" = "$port" ]; then
+    log "已同步 manifest 的 service_port = $port（应用中心按此端口做占用检查）"
+  else
+    log "警告：无法写入 $MANIFEST，应用中心仍会按旧端口检查；如提示端口被占用，请先确认该端口空闲"
+  fi
+  return 0
 }
 
 mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" 2>/dev/null || true
@@ -1540,7 +1634,13 @@ if [ -f "$SETTINGS" ]; then
   fi
 fi
 
-# ---------- 3. 需要时重启 ----------
+# ---------- 3. 让应用中心的端口检查对准真实端口 ----------
+# 没传端口说明端口未变，取当前生效的端口再同步
+EFFECTIVE_PORT="$PORT"
+[ -n "$EFFECTIVE_PORT" ] || EFFECTIVE_PORT="$("$PY" "$APP_PY" --print-port 2>/dev/null | tr -d '[:space:]')"
+sync_manifest_port "$EFFECTIVE_PORT"
+
+# ---------- 4. 需要时重启 ----------
 # 端口与认证都是启动时读取的，改动后必须重启才生效
 if "$SELF_DIR/main" status >/dev/null 2>&1; then
   log "检测到应用正在运行，重启以应用新配置"
@@ -1576,7 +1676,6 @@ exit 0
 #### `cmd/upgrade_callback` —— 升级后保留配置
 
 ```bash
-
 #!/bin/bash
 # 升级后：补齐运行目录、保证配置文件可解析；绝不覆盖用户已改过的端口与认证设置
 set -uo pipefail
@@ -1606,18 +1705,66 @@ find_python() {
   return 1
 }
 
+# ---------- manifest 端口同步 ----------
+# 应用中心启动前按 manifest 的 service_port 做占用检查，见 install_callback 中的说明。
+MANIFEST="$(dirname "$TRIM_APPDEST")/manifest"
+
+log() {
+  echo "fnos-qrcode[upgrade] $1"
+}
+
+sync_manifest_port() {
+  local port="$1" cur tmp
+  [ -n "$port" ] || return 0
+  if [ ! -f "$MANIFEST" ]; then
+    log "未找到 $MANIFEST，跳过 manifest 端口同步"
+    return 0
+  fi
+
+  cur="$(sed -n 's/^service_port[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$MANIFEST" 2>/dev/null | head -1)"
+  if [ "$cur" = "$port" ]; then
+    log "manifest 端口已是 $port，无需同步"
+    return 0
+  fi
+
+  if grep -q '^service_port' "$MANIFEST" 2>/dev/null; then
+    tmp="$MANIFEST.tmp.$$"
+    if sed "s|^service_port[[:space:]]*=.*|service_port          = ${port}|" "$MANIFEST" >"$tmp" 2>/dev/null; then
+      # 用 cat 回写以保留原 inode 与权限
+      cat "$tmp" >"$MANIFEST" 2>/dev/null || true
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+  else
+    printf '\nservice_port          = %s\n' "$port" >>"$MANIFEST" 2>/dev/null || true
+  fi
+
+  cur="$(sed -n 's/^service_port[[:space:]]*=[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$MANIFEST" 2>/dev/null | head -1)"
+  if [ "$cur" = "$port" ]; then
+    log "已同步 manifest 的 service_port = $port"
+  else
+    log "警告：无法写入 $MANIFEST，应用中心仍会按旧端口检查"
+  fi
+  return 0
+}
+
 PY="$(find_python)" || exit 0
 
+PORT=""
 if [ -f "$SETTINGS" ]; then
   # --print-port 会解析并规范化配置；解析失败时返回默认端口
-  "$PY" "$APP_PY" --print-port >/dev/null 2>&1 \
-    || echo "fnos-qrcode[upgrade] 警告：配置文件解析异常，应用启动时会回退到默认端口"
+  PORT="$("$PY" "$APP_PY" --print-port 2>/dev/null | tr -d '[:space:]')" || true
+  if [ -z "$PORT" ]; then
+    echo "fnos-qrcode[upgrade] 警告：配置文件解析异常，应用启动时会回退到默认端口"
+  fi
   echo "fnos-qrcode[upgrade] 已保留原有配置：$SETTINGS"
 else
   # 全新安装缺少配置（例如升级自不含配置的旧版本），补一份默认值
   "$PY" "$APP_PY" --set --port 10001 --auth off >/dev/null 2>&1 || true
+  PORT=10001
   echo "fnos-qrcode[upgrade] 未发现配置文件，已写入默认配置（端口 10001、不开启认证）"
 fi
+
+sync_manifest_port "$PORT"
 
 exit 0
 ```
@@ -2212,9 +2359,9 @@ fnos-qrcode.fpk                    ← gzip 压缩的 tar
 
 | 属性 | 值 |
 | --- | --- |
-| 大小 | `76840` B |
-| MD5 | `60cdaf3c8c83f640330fe0fb2662b651` |
-| SHA-256 | `8552313a7e5ba06e8ffc7f30531b5be791837757d76c331f9dc2feb8c7f5ee00` |
+| 大小 | `78010` B |
+| MD5 | `d0e65a36ca15d876e5f9da355c9ecfdd` |
+| SHA-256 | `82ee784d2ee987f35a695f17f0c2b91b248768b4abae2aa36bc7ea91bb1ec452` |
 
 ### 校验脚本
 
@@ -2288,12 +2435,24 @@ sudo appcenter-cli start fnos-qrcode
 
 | 项目 | 结果 |
 | --- | --- |
-| 安装 + 启用 | 进程起来，`0.0.0.0:10001` 监听，`GET /` 返回 200 |
-| 桌面图标 | 出现「二维码批量生成器」，点击打开 `http://<NAS>:10001/` |
+| 安装 + 启用 | 进程起来，按配置的端口监听，`GET /` 返回 200 |
+| 桌面图标 | 出现「二维码批量生成器」，点击打开入口端口 |
 | 实际生成二维码 | 4 条内容全部出码，写入「最近生成」 |
 | 装后改端口（UI 改 10005） | 自动重启、旧端口关闭、入口端口同步跟随 |
 | 装后开启认证 | 未登录 `302 /login`；密码错提示剩余次数；正确后进入 |
 | 状态检测 | `cmd/main status` 运行中返回 0、停止返回 3 |
+
+**v1.0.1 针对「端口被占用」误报的回归验证**（在一台 **10001 已被别的服务占用**
+的测试机上做，用占位进程模拟）：
+
+| 步骤 | 结果 |
+| --- | --- |
+| 复现旧版问题：manifest 固定 10001 + 10001 被占 | 启用返回 `code 11000`，弹「端口被占用」 |
+| 跑新版 `cmd/install_callback`（wizard_port=12990） | 日志「已同步 manifest 的 service_port = 12990」，manifest 变为 12990 |
+| 再点「启用」 | `code 0`，服务监听 `0.0.0.0:12990`，`GET /` 返回 200（10001 仍被占） |
+| 跑新版 `cmd/config_callback`（把端口改成 12991） | manifest 同步为 12991，settings.json 同步为 12991 |
+| 再点「启用」 | `code 0`，服务监听 `0.0.0.0:12991`，`GET /` 返回 200 |
+| `checkport = false` 时 manifest 固定 10001 + 10001 被占 | 启用 `code 0`（不再误报） |
 
 ---
 
@@ -2304,11 +2463,18 @@ sudo appcenter-cli start fnos-qrcode
 ```
 向导 wizard_port
    └─> cmd/install_callback、cmd/config_callback
-          └─> app.py --set --port N
-                 └─> $TRIM_PKGETC/settings.json   ← 唯一真实来源
-                        ├─> cmd/main 启动时 app.py --print-port 读取
-                        └─> app/ui/config 的 ${wizard_port} 由应用中心运行时替换
+          ├─> app.py --set --port N
+          │      └─> $TRIM_PKGETC/settings.json   ← 运行时唯一真实来源
+          │             ├─> cmd/main 启动时 app.py --print-port 读取
+          │             └─> app/ui/config 的 ${wizard_port} 由应用中心运行时替换
+          └─> 同步已安装 manifest 的 service_port = N
+                 └─> /var/apps/<app>/manifest     ← 应用中心据此做端口占用检查
 ```
+
+**为什么 manifest 也要同步**：`/var/apps/<app>/manifest` 是安装时从 FPK 解出来的**静态副本**，
+应用中心在「启用 / 启动」前只查这个文件里的 `service_port`，它不会跟随向导或「应用设置」里改的端口。
+不同步的话，用户把端口从 10001 改成 12990 之后，检查的仍然是 10001。
+详见 8.3 第 5 条。
 
 ### 8.2 认证实现
 
@@ -2339,11 +2505,55 @@ sudo appcenter-cli start fnos-qrcode
    `appcenter-cli uninstall` 会返回 `please uninstall it from Web UI`。
    卸载必须走 Web UI（这样才能弹出 `wizard/uninstall`）。升级同理：先卸载再安装。
 
-5. **`checkport = true` 的副作用**
-   应用中心在启动前会检查端口占用。如果在应用中心之外手工起过进程，
-   再次启用会提示「端口被占用」——先停用或结束该进程即可。
+5. **「端口被占用」误报：应用中心的检查读的是 manifest 里的静态端口**（v1.0.1 修复，最花时间的一个）
 
-6. **不要绕过应用中心启停服务**
+   **现象**：装好后点「启用」弹「无法启用 fnos-qrcode / 端口被占用」，
+   在「应用设置」里把访问端口改成任意值都仍然报占用，而那个端口其实是空闲的。
+
+   **根因**：应用中心启动前的端口占用检查，只用 `/var/apps/<app>/manifest` 里
+   `service_port` 声明的那一个端口（是否执行该检查由 `checkport` 控制）。
+   这个字段是**打包时的静态值**，安装后固定不变，既不跟随安装向导的
+   `wizard_port`，也不跟随「应用设置」里改的端口。本包 1.0.0 里写死
+   `service_port = 10001`，于是：
+
+   - 目标机器上 10001 已被别的服务占用时 → 界面上把「访问端口」改成什么
+     都没用，检查的永远是 10001 → 永远「端口被占用」
+   - 只有在 10001 恰好空闲的机器上才装得上（所以早期测试机一直是好的）
+
+   注意 `${wizard_port}` 这个运行时替换**只作用于 `app/ui/config` 的桌面入口**，
+   manifest 里写 `${wizard_port}` 不会被替换（实测：仍然不做检查）。
+
+   **实测取证**（真机，走 `/var/run/com.trim.app.center.sock` 的内部 RPC）：
+
+   | manifest 的 service_port | 10001 实际占用 | 应用设置里的端口 | 启用的返回 |
+   | --- | --- | --- | --- |
+   | `10001` | 被占用 | 10009（空闲） | `code 11000` → 前端「端口被占用」 |
+   | `10009` | 被占用 | 10009 | `code 0`，启动成功并监听 10009 |
+   | `10001` | 被占用 | 10009 | `code 0`（`checkport = false`） |
+   | 空 | 被占用 | 10009 | `code 0`，入口端口仍取 10009 |
+
+   接口是 `POST /app-center/v1/start/start`，`code 11000` 就是「端口被占用」；
+   `POST /app-center/v1/start/check` 只校验系统版本，与端口无关。
+
+   **修复**（v1.0.1）：
+
+   - manifest 里改 `checkport = false`：静态值本来就追不上用户改的端口，
+     开着这个检查只会误报，干脆交给应用自己负责
+   - `cmd/install_callback` / `cmd/config_callback` / `cmd/upgrade_callback`
+     在写入 `settings.json` 的同一处调用 `sync_manifest_port()`，
+     把已安装 manifest 的 `service_port` 同步成真实端口，声明与实际保持一致
+     （万一这句没写成，日志里会留一条警告，且不再有误报）
+
+   **真实的冲突**怎么表现：端口真被别人占用时，服务端绑定失败，
+   `$TRIM_PKGVAR/app.log` 里会有 `OSError: [Errno 98] Address already in use`，
+   换个空闲端口重新启用即可。
+
+6. **`checkport = true` 时手工起过进程也会报占用**
+   如果绕开应用中心手工起过本应用的进程，端口被自己占着，
+   再次启用也会提示「端口被占用」——先停用或结束该进程即可。
+   v1.0.1 起 `checkport = false`，这种情况不再触发该提示。
+
+7. **不要绕过应用中心启停服务**
    直接用 `cmd/main start` 会让应用中心状态与实际不同步（应用中心认为已停用，
    桌面图标随之隐藏）。测试时请通过应用中心「启用 / 停用」操作。
 
@@ -2393,6 +2603,8 @@ git push -u origin fnos-qrcode
 ### 9.3 提交历史
 
 ```
+0aced58  修复启用时误报「端口被占用」：manifest 的 service_port 不跟随用户改的端口
+9b2903f  新增 DEPLOY.md：FPK 构建源码与完整构建过程
 d512b38  fnos-qrcode: README 补充 FPK 与静态部署两种形态的说明
 d96d195  统一换行符为 LF（cmd/ 脚本在飞牛上需以 LF 检出）
 b37afa9  fnos-qrcode: 新增飞牛 fnOS 原生应用包（FPK）
