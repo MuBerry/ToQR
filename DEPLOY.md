@@ -3133,6 +3133,7 @@ git push -u origin fnos-qrcode
 ### 9.3 提交历史
 
 ```
+83c1c8c  安全加固 1.0.3：按第三轮渗透测试报告修复，并修掉 zip 下载的 CORS 缺陷
 100f538  修复登录限流：倒计时不动 / 等待后仍锁在同一秒，锁定 60s→120s
 38a36f6  DEPLOY.md：同步提交历史
 e9aa7d8  修复启用时误报「端口被占用」：manifest 的 service_port 不跟随用户改的端口
