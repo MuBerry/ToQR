@@ -43,7 +43,7 @@ from urllib.parse import parse_qs, unquote_plus, urlencode
 from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
-APPVERSION = '1.1.0'
+APPVERSION = '1.2.0'
 DEFAULT_PORT = 10001
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
