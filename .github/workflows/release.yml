@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  PY_VER: '3.12'
+
+jobs:
+  binaries:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: linux-amd64,   sep: ':' }
+          - { os: macos-14,       target: macos-arm64,   sep: ':' }
+          - { os: macos-13,       target: macos-amd64,   sep: ':' }
+          - { os: windows-latest, target: windows-amd64, sep: ';' }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PY_VER }}
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build single-file binary
+        run: >
+          pyinstaller --onefile --name toqr
+          --add-data "ui${{ matrix.sep }}ui"
+          --distpath dist --workpath build
+          server/app.py
+
+      - name: Package (macOS / Linux)
+        if: runner.os != 'Windows'
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          mv dist/toqr "toqr-${VER}-${{ matrix.target }}"
+          chmod +x "toqr-${VER}-${{ matrix.target }}"
+          tar czf "toqr-${VER}-${{ matrix.target }}.tar.gz" "toqr-${VER}-${{ matrix.target }}"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          Move-Item dist/toqr.exe "toqr-$ver-windows-amd64.exe"
+          Compress-Archive -Path "toqr-$ver-windows-amd64.exe" -DestinationPath "toqr-$ver-windows-amd64.zip"
+
+      - name: Smoke test (unix)
+        if: runner.os != 'Windows'
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          mkdir sm && cp "toqr-${VER}-${{ matrix.target }}" sm/ && cd sm
+          ./"toqr-${VER}-${{ matrix.target }}" --port 18099 &
+          ok=0
+          for i in $(seq 1 20); do
+            curl -fsS -o /dev/null http://127.0.0.1:18099/ && ok=1 && break
+            sleep 1
+          done
+          [ "$ok" = 1 ] && echo "smoke OK" || { echo "smoke FAILED"; exit 1; }
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          New-Item -ItemType Directory -Force sm | Out-Null
+          Copy-Item "toqr-$ver-windows-amd64.exe" sm/
+          $p = Start-Process -FilePath "sm/toqr-$ver-windows-amd64.exe" -ArgumentList '--port','18099' -PassThru
+          Start-Sleep -Seconds 5
+          $r = Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18099/
+          if ($r.StatusCode -ne 200) { exit 1 }
+          Stop-Process -Id $p.Id -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.target }}
+          path: |
+            toqr-*.tar.gz
+            toqr-*.zip
+            !build/**
+            !dist/**
+          if-no-files-found: error
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/toqr" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    needs: [binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: rel
+
+      - name: Extract changelog for this version
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VER" '
+            /^## / { if (found) exit; if (index($0, ver)) found=1 }
+            found { print }
+          ' CHANGELOG.md | sed '1d' | sed '/./,$!d' > body.md
+          [ -s body.md ] || { echo "ToQR $GITHUB_REF_NAME" > body.md; echo "（更新说明缺失，请补 CHANGELOG.md）" >> body.md; }
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: rel/*
+          body_path: body.md

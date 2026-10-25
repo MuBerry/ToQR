@@ -4,3 +4,8 @@ _t*.html
 Thumbs.db
 __pycache__/
 *.pyc
+etc/
+var/
+dist/
+build/
+*.spec

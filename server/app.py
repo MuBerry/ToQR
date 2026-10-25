@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""二维码批量生成器 · 飞牛 fnOS 版服务端
+"""ToQR · 二维码批量生成器服务端
 
 纯 Python3 标准库实现，无第三方依赖。职责：
 
-1. 托管 app/ui/ 下的静态页面（二维码批量生成器前端）
-2. 端口可配置（默认 10001），配置来自 settings.json
+1. 托管 ui/ 下的静态页面（二维码批量生成器前端）
+2. 端口可配置（默认 8080），配置来自 settings.json
 3. 可选用户认证：开启后需登录（PBKDF2 存密码 + HMAC 签名 Cookie）
 
 命令行：
-    python3 app.py                      启动服务（端口读 settings.json）
-    python3 app.py --port 8080          指定端口启动（调试用，不写配置）
-    python3 app.py --print-port         打印当前端口
-    python3 app.py --check              探测当前端口是否已在监听（供 cmd/main status 用）
-    python3 app.py --set [选项]          合并写入 settings.json
+    python3 server/app.py               启动服务（端口读 settings.json）
+    python3 server/app.py --port 8080   指定端口启动（不写配置）
+    python3 server/app.py --print-port  打印当前端口
+    python3 server/app.py --check       探测当前端口是否已在监听
+    python3 server/app.py --set [选项]   合并写入 settings.json
         --port N            设置端口
         --auth on|off       设置是否开启用户认证
         --user U            设置登录用户名（留空表示不改）
         --pass P            设置登录密码（留空表示不改）
 
-配置文件位置：$TRIM_PKGETC/settings.json（非 fnOS 环境下回退到 <包根>/etc/settings.json）
+路径解析优先级：
+    静态资源  $TOQR_UI_DIR > $TRIM_APPDEST/ui > <程序目录>/ui（PyInstaller 时取解包目录）
+    配置目录  $TOQR_ETC_DIR > $TRIM_PKGETC > <可执行文件目录>/etc
+    运行目录  $TOQR_VAR_DIR > $TRIM_PKGVAR > <可执行文件目录>/var
 """
 
 import argparse
@@ -42,9 +45,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote_plus, urlencode
 from urllib.request import Request as UrlRequest, urlopen as url_open
 
-APPNAME = 'fnos-qrcode'
-APPVERSION = '1.2.1'
-DEFAULT_PORT = 10001
+# PyInstaller 单文件在 Windows 控制台运行时，stderr 默认跟着 GBK 代码页走，
+# 中文日志会变乱码；统一改用 UTF-8（带替换符，控制台不支持也不会崩）
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError):
+        pass
+
+APPNAME = 'toqr'
+APPVERSION = '2.0.0'
+DEFAULT_PORT = 8080
 PORT_MIN, PORT_MAX = 1024, 65535
 SESSION_COOKIE = 'qr_session'
 SESSION_TTL = 7 * 24 * 3600          # 7 天
@@ -89,35 +100,52 @@ CSP = '; '.join((
     "frame-ancestors 'none'",
 ))
 
-HERE = os.path.dirname(os.path.abspath(__file__))     # <app>/server
-APP_DIR = os.path.dirname(HERE)                       # <app>
-PKG_DIR = os.path.dirname(APP_DIR)                    # <pkg>
 SETTINGS_NAME = 'settings.json'
 
 
 # --------------------------------------------------------------------------- #
 # 路径
 # --------------------------------------------------------------------------- #
+def _runtime_root():
+    """资源与数据的基准目录。
+
+    PyInstaller onefile 下 __file__ 指向解包临时目录（_MEIPASS），静态资源随包
+    打在那里；而 settings 等需要持久化的数据必须落在可执行文件旁边或用户指定
+    的目录，否则进程一退出就被清理。
+    """
+    if getattr(sys, 'frozen', False):
+        return (os.path.dirname(os.path.abspath(sys.executable)),
+                getattr(sys, '_MEIPASS', None))
+    here = os.path.dirname(os.path.abspath(__file__))     # <repo>/server
+    return (os.path.dirname(here), os.path.dirname(here))  # (数据根, 资源根) = <repo>
+
+
+_DATA_ROOT, _ASSET_ROOT = _runtime_root()
+
+
 def ui_dir():
-    """静态资源目录：安装后是 $TRIM_APPDEST/ui，开发态是 <包根>/app/ui"""
+    """静态资源目录：$TOQR_UI_DIR > $TRIM_APPDEST/ui > <资源根>/ui"""
+    d = os.environ.get('TOQR_UI_DIR')
+    if d:
+        return d
     dest = os.environ.get('TRIM_APPDEST')
     if dest:
         candidate = os.path.join(dest, 'ui')
         if os.path.isdir(candidate):
             return candidate
-    return os.path.join(APP_DIR, 'ui')
+    return os.path.join(_ASSET_ROOT or _DATA_ROOT, 'ui')
 
 
 def etc_dir():
-    """持久配置目录：$TRIM_PKGETC，回退 <包根>/etc"""
-    d = os.environ.get('TRIM_PKGETC')
-    return d if d else os.path.join(PKG_DIR, 'etc')
+    """持久配置目录：$TOQR_ETC_DIR > $TRIM_PKGETC > <数据根>/etc"""
+    d = os.environ.get('TOQR_ETC_DIR') or os.environ.get('TRIM_PKGETC')
+    return d if d else os.path.join(_DATA_ROOT, 'etc')
 
 
 def var_dir():
-    """运行时目录：$TRIM_PKGVAR，回退 <包根>/var"""
-    d = os.environ.get('TRIM_PKGVAR')
-    return d if d else os.path.join(PKG_DIR, 'var')
+    """运行时目录：$TOQR_VAR_DIR > $TRIM_PKGVAR > <数据根>/var"""
+    d = os.environ.get('TOQR_VAR_DIR') or os.environ.get('TRIM_PKGVAR')
+    return d if d else os.path.join(_DATA_ROOT, 'var')
 
 
 def settings_path():
@@ -487,7 +515,7 @@ LOGIN_PAGE = """<!DOCTYPE html>
     </div>
     <button type="submit">登录</button>
     __ERROR__
-    <p class="foot">fnOS 应用 · fnos-qrcode</p>
+    <p class="foot">ToQR</p>
   </form>
 </body></html>
 """
@@ -659,7 +687,7 @@ SETTINGS_PAGE = """<!DOCTYPE html>
     </form>
   </div>
 
-  <p class="foot">fnOS 应用 · fnos-qrcode · 配置文件 $TRIM_PKGETC/settings.json</p>
+  <p class="foot">ToQR · 配置文件 $TOQR_ETC_DIR/settings.json</p>
 </div></body></html>
 """
 
@@ -767,7 +795,7 @@ def render_settings_page(server, user, flash=None, flash_kind='ok', current_toke
 # HTTP
 # --------------------------------------------------------------------------- #
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'fnos-qrcode/' + APPVERSION
+    server_version = 'ToQR/' + APPVERSION
     protocol_version = 'HTTP/1.1'
 
     def version_string(self):
@@ -1580,7 +1608,7 @@ def cmd_serve(port_override):
         try:
             save_settings(settings)         # 落盘，避免每次重启都把已登录设备踢下线
         except OSError as err:
-            sys.stderr.write('[fnos-qrcode] 无法写入 session_key（重启后会话将失效）：%r\n'
+            sys.stderr.write('[toqr] 无法写入 session_key（重启后会话将失效）：%r\n'
                              % (err,))
 
     httpd = build_server(port, settings, secret)
@@ -1595,7 +1623,7 @@ def cmd_serve(port_override):
             pass
 
     auth_state = '开启' if settings['auth']['enabled'] else '关闭'
-    sys.stderr.write('[fnos-qrcode] listening on 0.0.0.0:%d  ui=%s  auth=%s  accounts=%d\n'
+    sys.stderr.write('[toqr] listening on 0.0.0.0:%d  ui=%s  auth=%s  accounts=%d\n'
                      % (port, httpd.ui_root, auth_state, len(settings['accounts'])))
     sys.stderr.flush()
     try:
@@ -1743,13 +1771,13 @@ def cmd_set(args):
         sys.stderr.write('配置无变化\n')
 
     save_settings(settings)
-    sys.stderr.write('[fnos-qrcode] settings written: %s (%s)\n'
+    sys.stderr.write('[toqr] settings written: %s (%s)\n'
                      % (settings_path(), ', '.join(changed) if changed else 'no change'))
     return 0
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(add_help=True, description='fnos-qrcode server')
+    parser = argparse.ArgumentParser(add_help=True, description='ToQR server')
     parser.add_argument('--port', type=int, default=None, help='以指定端口启动（不写入配置）')
     parser.add_argument('--print-port', action='store_true', help='打印当前配置端口')
     parser.add_argument('--check', action='store_true', help='探测当前端口是否在监听')

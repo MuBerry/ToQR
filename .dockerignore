@@ -1,0 +1,13 @@
+.git
+.github
+docs
+etc
+var
+dist
+build
+*.md
+.workbuddy
+__pycache__
+*.pyc
+Dockerfile
+docker-compose.yml

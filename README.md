@@ -1,75 +1,99 @@
-# ToQR — 二维码批量生成器（飞牛 fnOS 原生应用）
+# ToQR — 二维码批量生成器
 
-一个跑在[飞牛 fnOS](https://www.fnnas.com/)上的二维码批量生成器，以原生 `.fpk` 应用形式打包。把一批文本/链接粘贴进去，一键批量出码，支持在线预览、打包下载、历史记录。
+自托管二维码批量生成服务：把一批文本/链接粘贴进去，一键批量出码，支持在线预览、打包下载、历史记录。**粘贴购物 App 的分享文案会自动识别其中的链接**（京东/淘宝/天猫/拼多多/抖音/小红书等，含无协议短链），只给链接出码；点码放大；手机上点链接直接跳转对应 App。
 
-**v1.2.1 起支持购物分享文案智能识别**：整段粘贴京东/淘宝/拼多多/抖音等 App 的分享文案，自动挑出其中的链接（只给链接出码），点码放大，手机上点链接直接跳转对应 App。
+纯 Python 标准库实现，**零第三方依赖**。前端单文件，无构建步骤。
 
-![首页](fnos-qrcode/screenshots/01-home.png)
+![首页](docs/screenshots/01-home.png)
+
+## 快速开始
+
+### 方式一：源码运行
+
+```bash
+git clone https://github.com/MuBerry/ToQR.git
+cd ToQR
+python server/app.py --port 8080
+```
+
+要求 Python 3.8+，无需 `pip install`。
+
+### 方式二：二进制运行（Windows / macOS / Linux）
+
+从 [Releases](../../releases) 下载对应平台的单文件可执行程序：
+
+```bash
+# Windows (PowerShell)
+.\toqr-<版本>-windows-amd64.exe --port 8080
+
+# macOS / Linux
+chmod +x toqr-<版本>-<平台>
+./toqr-<版本>-<平台> --port 8080
+```
+
+配置与数据自动落在可执行文件同目录的 `etc/`、`var/` 下；想换位置用环境变量 `TOQR_ETC_DIR` / `TOQR_VAR_DIR`。
+
+> macOS 首次运行如被 Gatekeeper 拦截：`xattr -d com.apple.quarantine toqr-*` 后再执行。
+
+### 方式三：Docker
+
+```bash
+docker run -d --name toqr -p 8080:8080 -v toqr-data:/data ghcr.io/muberry/toqr:latest
+```
+
+或使用 docker-compose：
+
+```bash
+docker compose up -d
+```
+
+数据（`settings.json`、会话）持久化在 `toqr-data` 卷中。
 
 ## 功能特性
 
 | 功能 | 说明 |
 |---|---|
 | 批量生成 | 多行文本按行出码，实时预览，打包下载 PNG |
-| 链接识别 | 粘贴任意分享文案，自动提取链接（京东 `u.jd.com` / `item.jd.com` / `3.cn`、淘宝 `m.tb.cn`、天猫、拼多多、抖音、小红书等，也认不带协议的短链），重复链接自动去重（v1.2.0） |
-| 模式切换 | 「智能识别 / 按行原样」随时切换，选择会被记住；另有「提取链接」按钮一键抽取（v1.2.0） |
-| 点码放大 | 点任意二维码弹出 800px 大图，可下载、复制、用浏览器打开（v1.2.0） |
-| 手机跳 App | 卡片下方显示「平台标签 + 短链」，手机点击直接通过 App 协议唤起（`taobao://` / `openapp.jdmobile://` 等），没装 App 时提示后再点一次走网页（v1.2.1） |
-| 同源代理 | 二维码图片经服务端 `/qr` 代理取回，跨域失败自动回退直连，再失败显示占位图（v1.0.3） |
-| 历史记录 | 最近 50 条记录本地保存，可缩略图回看、点击回填 |
+| 链接识别 | 粘贴任意分享文案，自动提取链接并去重；「智能识别 / 按行原样」可切换 + 「提取链接」按钮 |
+| 点码放大 | 点任意二维码弹出 800px 大图，可下载、复制、用浏览器打开 |
+| 手机跳 App | 卡片下方「平台标签 + 短链」，手机点击直接通过 App 协议唤起，没装 App 再点一次走网页 |
+| 同源代理 | 二维码图片经服务端 `/qr` 代理取回，跨域失败自动回退直连 |
+| 用户认证 | 可选登录（PBKDF2 + HMAC Cookie），多账号、设备数限制、失败锁定、IP 黑白名单 |
+| 历史记录 | 最近 50 条本地保存，缩略图回看、点击回填 |
 
-![链接识别](fnos-qrcode/screenshots/06-links.png)
-![放大查看](fnos-qrcode/screenshots/07-lightbox.png)
+![链接识别](docs/screenshots/06-links.png)
 
-## 安装
-
-在飞牛 fnOS 的 **App 中心 → 手动安装** 上传 `fnos-qrcode_1.2.1.fpk`（见 [Releases](../../releases)）。
-
-安装包指纹（v1.2.1）：
-
-| 项 | 值 |
-|---|---|
-| 大小 | 102,688 字节 |
-| MD5 | `c580a125ef28c7ab910f00f590a19c81` |
-| SHA256 | `ca133ad28ac5afb7625e395cb7aa04d2f46dad09df6d870c009191a5d0c3e937` |
-
-## 使用
-
-1. 浏览器打开 `http://<NAS IP>:12990`
-2. 粘贴文本或分享文案 → 生成 → 预览
-3. 单张右键另存，或多选打包下载 zip
-
-完整说明见 [fnos-qrcode/fpk/README-USER.md](fnos-qrcode/fpk/README-USER.md)。
-
-## 构建
+## 服务端管理
 
 ```bash
-cd fnos-qrcode/fpk
-bash build-fpk.sh
+python server/app.py --port 9000            # 以指定端口启动（不写配置）
+python server/app.py --set --port 9000      # 把端口写进配置（重启后生效）
+python server/app.py --set --auth on --user admin --pass secret   # 开启登录
+python server/app.py --print-port           # 查看当前配置端口
+python server/app.py --check                # 探测端口是否在监听
 ```
 
-产物为 `fnos-qrcode_<版本号>.fpk` 与同名 `.zip`（用于论坛附件）。无 `fnpack` 环境时回退到内置打包器 `tools/build_fpk.py`。
+完整参数（失败锁定、设备数限制、IP 名单等）见 `python server/app.py --help`。
 
 ## 目录结构
 
 ```
-fnos-qrcode/
-├── fpk/                 # 应用包源（manifest / wizard / app）
-│   ├── app/
-│   │   ├── server/      # Python HTTP 服务（端口 12990）
-│   │   └── ui/          # 前端（构建时由仓库根 index.html 同步）
-│   ├── tools/           # 内置打包器
-│   └── build-fpk.sh     # 构建脚本
-├── html/fnos-qrcode/    # 静态预览副本
-├── screenshots/         # 截图
-└── FORUM-POST.md        # 论坛发布帖文案
+├── server/app.py          # 服务端（Python 标准库，单文件）
+├── ui/                    # 前端静态资源
+│   ├── index.html
+│   └── images/            # 图标
+├── docs/screenshots/      # 截图
+├── Dockerfile
+├── docker-compose.yml
+├── CHANGELOG.md
+└── .github/workflows/release.yml   # 打 tag 自动构建三平台二进制 + Docker 镜像并发 Release
 ```
 
-## 更新日志（节选）
+## 更新日志
 
-- **1.2.1** 手机点链接直接跳 App，不再经停淘宝等平台的强制登录页；唤起失败提示后再点一次走网页；灯箱新增「用浏览器打开」
-- **1.2.0** 粘贴即只出链接（智能识别 / 按行原样 / 提取链接按钮）；点码放大；卡片「平台标签 + 短链」
-- **1.1.0** 打包下载（zip）、生成历史、一键登录
-- **1.0.3** 二维码图片同源代理 + 直连回退 + 占位图兜底
+见 [CHANGELOG.md](CHANGELOG.md)。
 
-完整 changelog 见 [fnos-qrcode/fpk/manifest](fnos-qrcode/fpk/manifest)。
+## 说明
+
+- 二维码图片来自公共生成服务（`api.2dcode.biz`），由服务端代理转发；自建或离线环境可自行替换
+- 飞牛 fnOS 原生应用包（fpk）版本保留在 [`fnos-qrcode` 分支](../../tree/fnos-qrcode)
