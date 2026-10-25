@@ -15,7 +15,7 @@ ROOT_DIR="$(dirname "$FPK_DIR")"
 LIST_ONLY=0
 [ "${1:-}" = "--list" ] && LIST_ONLY=1
 
-echo "==> 1/4 同步前端页面"
+echo "==> 1/5 同步前端页面"
 SRC="$ROOT_DIR/../index.html"
 if [ ! -f "$SRC" ]; then
   echo "找不到前端源文件：$SRC" >&2
@@ -25,20 +25,20 @@ mkdir -p "$FPK_DIR/app/ui"
 cp "$SRC" "$FPK_DIR/app/ui/index.html"
 echo "    index.html -> app/ui/index.html ($(wc -c <"$FPK_DIR/app/ui/index.html") bytes)"
 
-echo "==> 2/4 整理命令权限"
+echo "==> 2/5 整理命令权限"
 chmod 755 "$FPK_DIR"/cmd/* 2>/dev/null || true
 chmod 644 "$FPK_DIR/manifest" "$FPK_DIR"/config/* "$FPK_DIR"/wizard/* 2>/dev/null || true
 
-echo "==> 3/4 清理构建垃圾"
+echo "==> 3/5 清理构建垃圾"
 find "$FPK_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 find "$FPK_DIR" -name '*.pyc' -delete 2>/dev/null || true
 find "$FPK_DIR" -name '.DS_Store' -delete 2>/dev/null || true
 rm -f "$FPK_DIR"/*.fpk 2>/dev/null || true
 
 if [ "$LIST_ONLY" = "1" ]; then
-  echo "==> 4/4 打包清单"
+  echo "==> 4/5 打包清单"
 else
-  echo "==> 4/4 打包"
+  echo "==> 4/5 打包"
 fi
 
 PY="${PYTHON:-}"
@@ -63,3 +63,42 @@ else
     "$PY" "$FPK_DIR/tools/build_fpk.py"
   fi
 fi
+
+[ "$LIST_ONLY" = "1" ] && exit 0
+
+# ---------------------------------------------------------------
+# 5/5 归档：产物统一带版本号，放在 fnos-qrcode/ 下
+#   fnos-qrcode_<version>.fpk        —— 直接安装 / 上传 Release 用
+#   fnos-qrcode_<version>.fpk.zip    —— 论坛等不便传二进制的地方用
+#   每次只保留当前版本，历史版本靠 git tag 与 Release 留存
+# ---------------------------------------------------------------
+echo
+echo "==> 5/5 归档产物（带版本号）"
+VER="$(sed -n 's/^version[[:space:]]*=[[:space:]]*//p' "$FPK_DIR/manifest" | head -1 | tr -d '\r' | tr -d '[:space:]')"
+[ -n "$VER" ] || { echo "无法从 manifest 读取版本号" >&2; exit 1; }
+
+BUILT="$(ls -1 "$FPK_DIR"/fnos-qrcode_${VER}*.fpk 2>/dev/null | head -1)"
+if [ -z "$BUILT" ]; then
+  echo "没有找到本次构建产物（期望 fnos-qrcode_${VER}*.fpk）" >&2
+  exit 1
+fi
+
+OUT="$ROOT_DIR/fnos-qrcode_${VER}.fpk"
+rm -f "$ROOT_DIR"/fnos-qrcode_*.fpk "$ROOT_DIR"/fnos-qrcode_*.fpk.zip 2>/dev/null || true
+rm -f "$ROOT_DIR/fnos-qrcode.fpk" "$ROOT_DIR/fnos-qrcode.fpk.zip" 2>/dev/null || true
+cp "$BUILT" "$OUT"
+"$PY" - "$OUT" "${OUT}.zip" <<'PYEOF'
+import sys, zipfile
+src, dst = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as z:
+    z.write(src, 'fnos-qrcode.fpk')
+PYEOF
+rm -f "$BUILT"
+
+echo "    版本      $VER"
+echo "    安装包    $OUT ($(wc -c <"$OUT") bytes)"
+echo "    md5       $(md5sum "$OUT" | cut -d' ' -f1)"
+echo "    压缩包    ${OUT}.zip ($(wc -c <"${OUT}.zip") bytes)"
+echo
+echo "    Release 正文可直接取 manifest 里 ${VER} 那一段："
+echo "    sed -n 's/^changelog[[:space:]]*=[[:space:]]*//p' \"$FPK_DIR/manifest\" | sed 's|<br />|\\n|g' | sed -n '/^${VER}/,/^[0-9]/p'"
