@@ -4062,8 +4062,8 @@ sudo appcenter-cli start fnos-qrcode
    | --- | --- |
    | `http://127.0.0.1:18752` | `http://127.0.0.1:18752`（放行） |
    | `http://localhost:5173` | `http://localhost:5173`（放行） |
-   | `http://192.168.x.x:12990` | 无 |
-   | `http://192.168.x.x:12990` | 无 |
+   | `http://192.168.1.x:12990` | 无 |
+   | `http://192.168.3.x:12990` | 无 |
    | `https://example.com` | 无 |
 
    也就是说：**本机开发时一切正常，一旦装到 NAS 上从局域网访问，`fetch` 必定被拦**。
