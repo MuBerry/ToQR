@@ -26,7 +26,7 @@ python server/app.py --port 8080
 # Windows (PowerShell)
 .\toqr-<版本>-windows-amd64.exe --port 8080
 
-# macOS / Linux
+# macOS（Apple Silicon）/ Linux
 chmod +x toqr-<版本>-<平台>
 ./toqr-<版本>-<平台> --port 8080
 ```
@@ -34,6 +34,7 @@ chmod +x toqr-<版本>-<平台>
 配置与数据自动落在可执行文件同目录的 `etc/`、`var/` 下；想换位置用环境变量 `TOQR_ETC_DIR` / `TOQR_VAR_DIR`。
 
 > macOS 首次运行如被 Gatekeeper 拦截：`xattr -d com.apple.quarantine toqr-*` 后再执行。
+> 二进制目前只提供 Apple Silicon（arm64）版；Intel Mac 可用 Docker 镜像（原生 amd64）或源码运行。
 
 ### 方式三：Docker
 

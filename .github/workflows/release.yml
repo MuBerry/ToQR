@@ -21,8 +21,9 @@ jobs:
         include:
           - { os: ubuntu-latest,  target: linux-amd64,   sep: ':' }
           - { os: macos-14,       target: macos-arm64,   sep: ':' }
-          - { os: macos-13,       target: macos-amd64,   sep: ':' }
           - { os: windows-latest, target: windows-amd64, sep: ';' }
+        # 不再构建 Intel 版 macOS：macos-13 runner 已退役。Intel Mac 可用
+        # Docker 镜像（ghcr.io/muberry/toqr，linux/amd64 原生）或源码运行
     steps:
       - uses: actions/checkout@v4
 

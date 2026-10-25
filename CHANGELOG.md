@@ -4,7 +4,7 @@
 
 - **重构发布形态**：不再依赖飞牛 fnOS 应用包（fpk），改为通用服务，三种部署方式任选：
   - **源码运行**：`python server/app.py --port 8080`（纯 Python 标准库，无第三方依赖）
-  - **二进制运行**：Release 提供 Windows / macOS（Apple Silicon 与 Intel）/ Linux 单文件可执行程序，启动时 `--port` 指定端口，配置与数据自动落在可执行文件旁边的 `etc/`、`var/`
+  - **二进制运行**：Release 提供 Windows / macOS（Apple Silicon）/ Linux 单文件可执行程序，启动时 `--port` 指定端口，配置与数据自动落在可执行文件旁边的 `etc/`、`var/`（Intel Mac 走 Docker 或源码）
   - **Docker**：`ghcr.io/muberry/toqr`，数据卷挂 `/data`
 - 服务端更名 ToQR（原 fnos-qrcode），默认端口改为 8080，可用 `--port` 或 `--set --port N` 写入配置
 - 新增环境变量：`TOQR_UI_DIR`（静态资源）、`TOQR_ETC_DIR`（配置）、`TOQR_VAR_DIR`（运行数据）
