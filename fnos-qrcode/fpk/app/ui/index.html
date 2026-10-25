@@ -269,7 +269,7 @@
   }
   .lb-link:hover{text-decoration:underline}
   .lb-tip{font-size:11.5px;color:var(--text-5);line-height:1.6}
-  .lb-actions{display:flex;gap:8px;justify-content:center;margin-top:14px}
+  .lb-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
   .lb-actions .btn{height:32px;padding:0 12px;font-size:12.5px}
 
   .preview-skeleton{font-size:13px;color:var(--text-4)}
@@ -549,6 +549,7 @@
     <div class="lb-actions">
       <button class="btn btn-primary" id="lbDownload" type="button">下载这张</button>
       <button class="btn btn-ghost" id="lbCopy" type="button">复制链接</button>
+      <button class="btn btn-ghost" id="lbWeb" type="button">用浏览器打开</button>
     </div>
   </div>
 </div>
@@ -699,6 +700,7 @@
   const lbLinkText = $('lbLinkText');
   const lbTip     = $('lbTip');
   const lbCopy    = $('lbCopy');
+  const lbWeb     = $('lbWeb');
   const fileInput = $('fileInput');
   const importBar = $('importBar');
   const importNameText = $('importNameText');
@@ -1033,11 +1035,15 @@
 
     lbLink.hidden = !isUrl;
     lbTip.hidden = !isUrl;
+    lbWeb.hidden = !isUrl;
     lbCopy.textContent = isUrl ? '复制链接' : '复制内容';
     if (isUrl) {
       lbLink.href = text;
       lbLinkText.textContent = shortUrl(text, 64);
-      lbTip.textContent = '点上面的链接可唤起对应 App，没装则打开网页';
+      const app = info && info.platform && APP_SCHEMES[info.platform.key];
+      lbTip.textContent = app
+        ? '点链接直接跳到「' + info.platform.name + '」，没装就用下面的「用浏览器打开」'
+        : '点链接用浏览器打开';
     }
 
     lightbox.hidden = false;
@@ -1080,43 +1086,58 @@
   }
 
   /* ============ 手机点文字 → 唤起 App ============ */
-  // 已知平台的自定义协议：https 没能把页面接管走时兜底用
+  // 各平台自定义协议：手机上点链接直接唤起 App，不再先过一遍网页。
+  // 之前"先走 https 等系统接管"的写法在淘宝上行不通——它的网页落地页会
+  // 强制登录，页面确实跳走了（visibilitychange 已触发），兜底协议永远轮不到。
   const APP_SCHEMES = {
     jd: (u) => 'openapp.jdmobile://virtual?params=' + encodeURIComponent(
       JSON.stringify({ category: 'jump', des: 'm', url: u })),
     taobao: (u) => 'taobao://' + u.replace(/^https?:\/\//i, ''),
     tmall: (u) => 'tmall://' + u.replace(/^https?:\/\//i, ''),
-    pdd: () => 'pinduoduo://',
-    douyin: () => 'snssdk1128://',
-    xhs: () => 'xhsdiscover://',
-    weibo: () => 'sinaweibo://',
-    bili: () => 'bilibili://',
-    zhihu: () => 'zhihu://',
-    kuaishou: () => 'kwai://'
+    pdd: (u) => 'pinduoduo://' + u.replace(/^https?:\/\//i, ''),
+    douyin: (u) => 'snssdk1128://webview?url=' + encodeURIComponent(u),
+    xhs: (u) => 'xhsdiscover://' + u.replace(/^https?:\/\//i, ''),
+    weibo: (u) => 'sinaweibo://' + u.replace(/^https?:\/\//i, ''),
+    bili: (u) => 'bilibili://' + u.replace(/^https?:\/\//i, ''),
+    zhihu: (u) => 'zhihu://' + u.replace(/^https?:\/\//i, ''),
+    kuaishou: (u) => 'kwai://' + u.replace(/^https?:\/\//i, '')
   };
 
   function isMobileUA() {
     return /Android|iPhone|iPad|iPod|HarmonyOS|Mobile/i.test(navigator.userAgent);
   }
 
+  // 唤起失败过的链接：同一张码再点就走网页，不必反复试协议
+  let schemeFailedUrl = '';
+
+  function openInWeb(url) {
+    if (!url) return;
+    if (isMobileUA()) window.location.href = url;
+    else window.open(url, '_blank', 'noopener');
+  }
+
   function openInApp(url, platform) {
     if (!url || !/^https?:\/\//i.test(url)) return;
     if (!isMobileUA()) { window.open(url, '_blank', 'noopener'); return; }
 
-    // 先走 https：系统通用链接能直接唤起 App；1.2 秒内页面没被接管再试协议
+    const build = platform && APP_SCHEMES[platform.key];
+    if (!build) { openInWeb(url); return; }
+    if (schemeFailedUrl === url) { openInWeb(url); return; }
+
+    // 直接跳 App。1.8 秒后页面还在前台，说明没唤起来（多半没装）
     let taken = false;
     const onVis = () => { if (document.visibilityState === 'hidden') taken = true; };
     document.addEventListener('visibilitychange', onVis);
 
+    try { window.location.href = build(url); } catch (e) {}
+
     setTimeout(() => {
       document.removeEventListener('visibilitychange', onVis);
       if (taken || document.visibilityState !== 'visible') return;
-      const build = platform && APP_SCHEMES[platform.key];
-      if (!build) { toast('没有自动跳转？长按链接复制后到 App 里打开', 3600); return; }
-      try { window.location.href = build(url); } catch (e) {}
-    }, 1200);
-
-    window.location.href = url;
+      schemeFailedUrl = url;
+      toast('没能唤起' + (platform ? '「' + platform.name + '」' : ' App') +
+            '，可能没装。再点一次改用网页打开', 4200);
+    }, 1800);
   }
 
   /* ============ 最近生成记录 ============ */
@@ -1502,6 +1523,7 @@
     downloadOne(text, lbIndex).catch(() => toast('下载失败，已尝试在新窗口打开'));
   });
   lbCopy.addEventListener('click', () => copyText(currentItems[lbIndex]));
+  lbWeb.addEventListener('click', () => openInWeb(currentItems[lbIndex]));
 
   // Ctrl/Cmd + Enter 快捷生成
   inputEl.addEventListener('keydown', (e) => {
