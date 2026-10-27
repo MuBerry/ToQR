@@ -40,6 +40,7 @@ import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote_plus, urlencode
+from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
 APPVERSION = '1.2.1'
@@ -55,6 +56,9 @@ MAX_ACCOUNTS = 10                    # 账号数量上限（设置页 / 向导�
 CSRF_TTL = 30 * 60                   # 登录表单 token 有效期（秒）
 MAX_BODY = 64 * 1024                 # POST body 上限
 MAX_HEADER_LINE = 8192               # 单行请求头上限（默认 65536 太宽松）
+# 备用解析器 2（草料开放平台）的上游地址；只在用户显式选择时才请求
+QR_UPSTREAM = 'https://api.2dcode.biz/v1/create-qr-code'
+QR_MAX_BYTES = 2 * 1024 * 1024       # 上游图片体积上限
 QR_MAX_DATA = 1024                   # 单个二维码内容长度上限（字节）
 QR_CACHE_MAX = 512                   # 内存里缓存的二维码张数
 
@@ -978,6 +982,10 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_qr()
             return
 
+        if path == '/api/qr-remote':
+            self._serve_qr_remote()
+            return
+
         self._serve_static(path)
 
     def _serve_settings(self):
@@ -1142,6 +1150,24 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as err:                      # noqa: BLE001 —— 编码异常按服务端错误处理
             sys.stderr.write('[qr] encode failed: %r\n' % (err,))
             self._send(HTTPStatus.INTERNAL_SERVER_ERROR, 'qr encode error',
+                       'text/plain; charset=utf-8')
+            return
+        self._send(HTTPStatus.OK, blob, ctype, {'Cache-Control': 'public, max-age=86400'})
+
+    def _serve_qr_remote(self):
+        """备用解析器 2（草料 API）的同源转发：/api/qr-remote?data=...&size=..."""
+        raw_query = self.path.split('?', 1)[1] if '?' in self.path else ''
+        query = parse_qs(raw_query, keep_blank_values=True)
+        data = (query.get('data') or [''])[0]
+        size = (query.get('size') or [''])[0]
+        if not self.server.qr_relay.valid(data, size):
+            self._send(HTTPStatus.BAD_REQUEST, 'bad qr request', 'text/plain; charset=utf-8')
+            return
+        try:
+            ctype, blob = self.server.qr_relay.get(data, size)
+        except Exception as err:                      # noqa: BLE001 —— 上游不可用就回 502
+            sys.stderr.write('[qr-relay] upstream failed: %r\n' % (err,))
+            self._send(HTTPStatus.BAD_GATEWAY, 'upstream unavailable',
                        'text/plain; charset=utf-8')
             return
         self._send(HTTPStatus.OK, blob, ctype, {'Cache-Control': 'public, max-age=86400'})
@@ -1839,6 +1865,47 @@ class QrProxy(object):
         return ('image/png', blob)
 
 
+class QrRelay(object):
+    """备用解析器 2：转发草料开放平台的公开接口
+
+    只在用户显式选择「草料 API」时才会用到；默认走本地编码器，不碰任何外部服务。
+    安全要点：上游主机写死（不可由请求指定，杜绝 SSRF）；data / size 校验后用
+    urlencode 拼装；响应限体积、限类型；结果按 (data, size) 缓存。
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._cache = {}
+
+    @staticmethod
+    def valid(data, size):
+        return QrProxy.valid(data, size)
+
+    def get(self, data, size):
+        key = (data, size)
+        with self._lock:
+            hit = self._cache.get(key)
+        if hit is not None:
+            return hit
+
+        params = urlencode({'data': data, 'size': size})
+        req = UrlRequest(QR_UPSTREAM + '?' + params,
+                         headers={'User-Agent': '%s/%s' % (APPNAME, APPVERSION)})
+        with url_open(req, timeout=15) as resp:
+            ctype = (resp.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+            if resp.status != 200 or not ctype.startswith('image/'):
+                raise ValueError('upstream %s %s' % (resp.status, ctype or '-'))
+            blob = resp.read(QR_MAX_BYTES + 1)
+        if not blob or len(blob) > QR_MAX_BYTES:
+            raise ValueError('upstream size %d' % len(blob))
+
+        with self._lock:
+            if len(self._cache) >= QR_CACHE_MAX:
+                self._cache.clear()
+            self._cache[key] = (ctype, blob)
+        return (ctype, blob)
+
+
 class SessionStore(object):
     """会话登记表（进程内）
 
@@ -1961,6 +2028,7 @@ def build_server(port, settings, secret):
     httpd.csrf_guard = CsrfGuard()
     httpd.session_store = SessionStore()
     httpd.qr_proxy = QrProxy()
+    httpd.qr_relay = QrRelay()
     return httpd
 
 

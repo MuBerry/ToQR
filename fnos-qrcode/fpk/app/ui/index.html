@@ -44,18 +44,20 @@
     position:sticky;top:0;z-index:20;
   }
   .topbar-inner{
-    height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+    height:64px;display:flex;align-items:center;justify-content:flex-start;gap:16px;
   }
   .brand{display:flex;align-items:center;gap:10px;min-width:0}
   .brand h1{
     font-size:18px;font-weight:700;color:var(--text-1);letter-spacing:.2px;white-space:nowrap;
   }
   .brand-sub{font-size:13px;color:var(--text-4);white-space:nowrap}
-  .topbar-right{display:flex;align-items:center;gap:14px;min-width:0}
+  /* 两页标题文字长短不同，给标题块固定占位，保证按钮起点完全一致 */
+  @media (min-width:861px){ .brand{min-width:200px} }
+  .topbar-right{display:flex;align-items:center;gap:14px;min-width:0;margin-left:auto;flex:none}
 
   /* 顶栏「使用说明」按钮 */
   .help-btn{
-    flex:none;display:inline-flex;align-items:center;gap:6px;
+    flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
     height:32px;padding:0 12px;border-radius:8px;cursor:pointer;
     background:#f3f6fa;border:1px solid #e3e8ef;color:var(--text-2);
     font-family:inherit;font-size:13px;font-weight:500;
@@ -132,8 +134,8 @@
   .grid .card{margin-top:0}
 
   .panel-input{padding:20px 22px 22px;display:flex;flex-direction:column}
-  .hint-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:8px 0 10px}
-  .hint{font-size:12.5px;color:var(--text-4)}
+  .hint-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;margin:8px 0 10px}
+  .hint{font-size:12.5px;color:var(--text-4);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mini-btn{
     display:inline-flex;align-items:center;gap:4px;flex:none;
     font-size:12px;font-family:inherit;color:var(--blue);
@@ -268,8 +270,21 @@
 
   /* ---------------- 链接识别（模式切换 / 平台标签 / 放大） ---------------- */
   .hint-tools{display:flex;align-items:center;gap:8px;flex:none}
+  .engine-wrap{
+    display:inline-flex;align-items:center;flex:none;
+    height:28px;padding:0 4px 0 8px;border:1px solid var(--input-border);
+    border-radius:6px;background:#fff;font-size:12px;color:var(--text-4);
+  }
+  .engine-wrap select{
+    border:none;outline:none;background:transparent;font-family:inherit;font-size:12px;
+    color:var(--text-2);height:26px;padding:0 16px 0 0;cursor:pointer;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9.5l6 6 6-6' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 0 center;
+  }
+  .engine-wrap select:focus-visible{border-radius:4px;box-shadow:0 0 0 3px rgba(59,130,246,.18)}
   /* 顶栏功能入口（对应两个文根） */
-  .root-nav{display:flex;align-items:center;gap:8px;margin-left:auto;margin-right:4px;min-width:0}
+  .root-nav{display:flex;align-items:center;gap:8px;margin-left:6px;min-width:0}
   .root-tab{
     display:inline-flex;align-items:center;gap:6px;flex:none;
     height:34px;padding:0 14px;border-radius:8px;text-decoration:none;
@@ -371,10 +386,15 @@
   }
   .toast.show{opacity:1;transform:translate(-50%,0)}
 
+  @media (max-width:1080px){
+    .brand-sub{display:none}
+    .root-tab{padding:0 11px;font-size:12.5px}
+    .root-nav{gap:6px}
+  }
   @media (max-width:860px){
     .grid{grid-template-columns:1fr}
     .brand-sub{display:none}
-    .topbar-inner{height:auto;flex-wrap:wrap;padding:10px 0 8px;gap:8px}
+    .topbar-inner{height:auto;flex-wrap:wrap;padding-top:10px;padding-bottom:8px;gap:8px}
     .root-nav{order:3;width:100%;margin:0;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
     .root-nav::-webkit-scrollbar{display:none}
     .root-tab{height:32px;padding:0 11px;font-size:12.5px;border-radius:16px}
@@ -384,6 +404,7 @@
   }
   /* 手机上使用说明改为底部抽屉，避免小屏弹窗被键盘/工具栏挤压 */
   @media (max-width:560px){
+    .hint-row{flex-wrap:wrap}
     .container{padding:0 16px}
     .modal{align-items:flex-end;padding:0}
     .modal-card{
@@ -478,6 +499,13 @@
       <div class="hint-row">
         <p class="hint" id="inputHint">每行一个内容，将生成对应二维码</p>
         <div class="hint-tools">
+          <label class="engine-wrap" title="解析器：选择二维码由谁生成（本机 / 浏览器 / 草料开放平台）">
+            <select id="engineSelect" aria-label="二维码解析器">
+              <option value="server">默认（本机编码）</option>
+              <option value="offline">备用1 · 离线</option>
+              <option value="caoliao">备用2 · 草料 API</option>
+            </select>
+          </label>
           <div class="tpl-wrap">
             <button type="button" class="mini-btn" id="btnTemplate" aria-haspopup="menu" aria-expanded="false" title="下载导入模板（CSV / TXT）">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -621,6 +649,7 @@
       <p>在文本框中输入内容，每一行一个条目，系统将为每个条目生成对应的二维码。生成后可直接预览并保存需要的二维码。</p>
       <p>直接把购物 App 的分享文案整段粘进来也行：会自动识别其中的链接（京东、淘宝、天猫、拼多多、抖音等），只给链接生成二维码，文案里的其他字会被忽略。</p>
       <p>本页行为由地址决定：<b>/qr</b>（含直接访问根地址）每行原样出码；<b>/qr-shop</b> 只提取文案里的链接出码；<b>/qrscan</b> 用摄像头或图片反查二维码 / 条形码里的内容。</p>
+      <p><b>解析器</b>：输入框右上方可以切换出码引擎 —— 「默认」由本机服务端编码（推荐，不联网）；「备用1 · 离线」在浏览器里直接生成，连服务端都不经过；「备用2 · 草料 API」调用草料开放平台的公开接口，需要服务器能访问外网。选择会记在浏览器里。</p>
       <ul class="tips">
         <li>
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -684,6 +713,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="vendor/toqr-qr.js"></script>
 <script>
 (function () {
   'use strict';
@@ -705,7 +735,20 @@
   const HISTORY_KEY = 'qr-batch-history-v1';
   const HISTORY_LIMIT = 8;
 
+  // 解析器：server=本机编码（默认）；offline=浏览器内编码，不经过服务端；
+  //         caoliao=草料开放平台公开接口，由服务端同源转发（需服务端能上网）
+  const ENGINE_KEY = 'qr-engine';
+  const ENGINES = ['server', 'offline', 'caoliao'];
+  let engine = 'server';
+
   function buildQrUrl(text, size) {
+    if (engine === 'offline' && window.ToQR) {
+      try { return window.ToQR.dataUrl(text, size); }
+      catch (e) { /* 编码失败就退回本机 */ }
+    }
+    if (engine === 'caoliao') {
+      return '/api/qr-remote?data=' + encodeURIComponent(text) + '&size=' + size + 'x' + size;
+    }
     return QR_BASE + '?data=' + encodeURIComponent(text) + '&size=' + size + 'x' + size;
   }
 
@@ -1031,7 +1074,16 @@
   /* ============ 下载 ============ */
   // 二维码是同源接口返回的，直接取 blob 即可，不存在跨域问题。
   async function fetchQrBlob(text) {
-    const res = await fetch(buildQrUrl(text, QR_SIZE), { cache: 'no-store' });
+    const url = buildQrUrl(text, QR_SIZE);
+    // 离线解析器给的是 data URL，而 CSP 的 connect-src 只放行 'self'，
+    // fetch(data:) 会被拦，所以这里手动解 base64。
+    if (url.slice(0, 5) === 'data:') {
+      const bin = atob(url.slice(url.indexOf(',') + 1));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: 'image/png' });
+    }
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.blob();
   }
@@ -1565,6 +1617,7 @@
   // 下载模板：按钮展开格式菜单（CSV / TXT）
   const tplMenu = $('tplMenu');
   const btnTemplate = $('btnTemplate');
+  const engineSelect = $('engineSelect');
 
   function closeTplMenu() {
     tplMenu.hidden = true;
@@ -1712,6 +1765,22 @@
   lbCopy.addEventListener('click', () => copyText(currentItems[lbIndex]));
   lbWeb.addEventListener('click', () => openInWeb(currentItems[lbIndex]));
 
+  // 切换解析器：重新渲染当前条目，让用户立刻看到新引擎的效果
+  engineSelect.addEventListener('change', () => {
+    const next = engineSelect.value;
+    if (ENGINES.indexOf(next) === -1 || next === engine) return;
+    engine = next;
+    try { localStorage.setItem(ENGINE_KEY, engine); } catch (e) {}
+    renderPreview(currentItems.slice(), currentMeta);
+    if (engine === 'offline') {
+      toast('已切换到备用解析器 1：在浏览器内生成，不经过服务端', 2800);
+    } else if (engine === 'caoliao') {
+      toast('已切换到备用解析器 2：走草料开放平台，需要服务端能上外网', 3200);
+    } else {
+      toast('已切回默认解析器：本机编码', 2200);
+    }
+  });
+
   // Ctrl/Cmd + Enter 快捷生成
   inputEl.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -1721,6 +1790,12 @@
   });
 
   /* ============ 初始化 ============ */
+  try {
+    const savedEngine = localStorage.getItem(ENGINE_KEY);
+    if (ENGINES.indexOf(savedEngine) !== -1) engine = savedEngine;
+  } catch (e) {}
+  engineSelect.value = engine;
+
   markActiveTab();
   updateLinkHint();
   renderHistory();
