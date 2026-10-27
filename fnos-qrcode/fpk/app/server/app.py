@@ -40,7 +40,6 @@ import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote_plus, urlencode
-from urllib.request import Request as UrlRequest, urlopen as url_open
 
 APPNAME = 'fnos-qrcode'
 APPVERSION = '1.2.1'
@@ -56,9 +55,7 @@ MAX_ACCOUNTS = 10                    # 账号数量上限（设置页 / 向导�
 CSRF_TTL = 30 * 60                   # 登录表单 token 有效期（秒）
 MAX_BODY = 64 * 1024                 # POST body 上限
 MAX_HEADER_LINE = 8192               # 单行请求头上限（默认 65536 太宽松）
-QR_UPSTREAM = 'https://api.2dcode.biz/v1/create-qr-code'
-QR_MAX_DATA = 1024                   # 单个二维码内容长度上限
-QR_MAX_BYTES = 2 * 1024 * 1024       # 上游图片体积上限
+QR_MAX_DATA = 1024                   # 单个二维码内容长度上限（字节）
 QR_CACHE_MAX = 512                   # 内存里缓存的二维码张数
 
 # 失败计数窗口：**连续**失败之间只要不超过这个秒数就继续累计，超过则计数清零。
@@ -71,16 +68,13 @@ LOGIN_FAIL_WINDOW = 120
 # 把前缀加进这个元组即可，如 ('127.', '::1', '192.168.')；留空表示全部受限。
 LOGIN_LOCK_TRUSTED_PREFIXES = ()
 
-# 前端是单文件页面（内联 script/style），并会从 jsDelivr 取 JSZip、
-# 从 api.2dcode.biz 取二维码图片，所以必须放行这三处，其余一律 'self'。
+# 前端是单文件页面（内联 script/style），二维码由本进程生成、打包也由前端本地完成，
+# 页面不引用任何外部资源，所以 CSP 全部收在 'self'（离线部署同样可用）。
 CSP = '; '.join((
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
-    # img-src 仍保留第三方域：前端在代理不可用时会回落到直连 <img>
-    "img-src 'self' data: blob: https://api.2dcode.biz",
-    # connect-src 收紧为 'self'：跨域 fetch 在真实域名下本来就被 CORS 拦，
-    # 现在二维码统一走同源 /qr 代理，这里不再需要放行任何第三方
+    "img-src 'self' data: blob:",
     "connect-src 'self'",
     "font-src 'self'",
     "object-src 'none'",
@@ -1119,7 +1113,7 @@ class Handler(BaseHTTPRequestHandler):
         self._redirect_settings(msg, kind)
 
     def _serve_qr(self):
-        """同源二维码代理：/qr?data=...&size=400x400"""
+        """本地生成二维码：/qr?data=...&size=400x400"""
         raw_query = self.path.split('?', 1)[1] if '?' in self.path else ''
         query = parse_qs(raw_query, keep_blank_values=True)
         data = (query.get('data') or [''])[0]
@@ -1129,9 +1123,13 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             ctype, blob = self.server.qr_proxy.get(data, size)
-        except Exception as err:                      # noqa: BLE001 —— 上游任何异常都回 502
-            sys.stderr.write('[qr] upstream failed: %r\n' % (err,))
-            self._send(HTTPStatus.BAD_GATEWAY, 'upstream error', 'text/plain; charset=utf-8')
+        except QrEncodeError as err:                  # 内容超出二维码容量
+            self._send(HTTPStatus.BAD_REQUEST, str(err), 'text/plain; charset=utf-8')
+            return
+        except Exception as err:                      # noqa: BLE001 —— 编码异常按服务端错误处理
+            sys.stderr.write('[qr] encode failed: %r\n' % (err,))
+            self._send(HTTPStatus.INTERNAL_SERVER_ERROR, 'qr encode error',
+                       'text/plain; charset=utf-8')
             return
         self._send(HTTPStatus.OK, blob, ctype, {'Cache-Control': 'public, max-age=86400'})
 
@@ -1387,16 +1385,414 @@ class LoginGuard(object):
             self._state.pop(ip, None)
 
 
+# --------------------------------------------------------------------------- #
+# 二维码编码（纯标准库离线实现）
+# --------------------------------------------------------------------------- #
+# 以前二维码是转给第三方公开接口（api.2dcode.biz）生成的：NAS 不通外网就直接
+# 空白，请求还要出机器。现在改为本地按 QR Code Model 2 规范编码并输出 PNG，
+# 不联网、不上传，与页面底部「内容仅在本机处理」的承诺一致。
+#
+# 实现范围：字节模式（UTF-8）、纠错等级 M、版本 1~40 自动选择、8 种掩码按规则择优。
+
+class QrEncodeError(ValueError):
+    """内容超出二维码容量。"""
+
+
+# 版本 → (每块纠错码字数, 组1块数, 组1每块数据码字, 组2块数, 组2每块数据码字)
+# 数值取自 ISO/IEC 18004 的纠错块表（等级 M）。
+_QR_BLOCKS_M = (
+    (10, 1, 16, 0, 0), (16, 1, 28, 0, 0), (26, 1, 44, 0, 0), (18, 2, 32, 0, 0),
+    (24, 2, 43, 0, 0), (16, 4, 27, 0, 0), (18, 4, 31, 0, 0), (22, 2, 38, 2, 39),
+    (22, 3, 36, 2, 37), (26, 4, 43, 1, 44), (30, 1, 50, 4, 51), (22, 6, 36, 2, 37),
+    (22, 8, 37, 1, 38), (24, 4, 40, 5, 41), (24, 5, 41, 5, 42), (28, 7, 45, 3, 46),
+    (28, 10, 46, 1, 47), (26, 9, 43, 4, 44), (26, 3, 44, 11, 45), (26, 3, 41, 13, 42),
+    (26, 17, 42, 0, 0), (28, 17, 46, 0, 0), (28, 4, 47, 14, 48), (28, 6, 45, 14, 46),
+    (28, 8, 47, 13, 48), (28, 19, 46, 4, 47), (28, 22, 45, 3, 46), (28, 3, 45, 23, 46),
+    (28, 21, 45, 7, 46), (28, 19, 47, 10, 48), (28, 2, 46, 29, 47), (28, 10, 46, 23, 47),
+    (28, 14, 46, 21, 47), (28, 14, 46, 23, 47), (28, 12, 47, 26, 48), (28, 6, 47, 34, 48),
+    (28, 29, 46, 14, 47), (28, 13, 46, 32, 47), (28, 40, 47, 7, 48), (28, 18, 47, 31, 48),
+)
+
+_QR_MAX_VERSION = 40
+_QR_ECC_BITS_M = 0b00          # 纠错等级 M 在格式信息里的两位取值
+_QR_QUIET = 4                  # 静区宽度（模块数），规范要求 ≥ 4
+
+
+def _qr_gf_tables():
+    """GF(256) 以 0x11D 为本原多项式的指数/对数表。"""
+    exp = [0] * 512
+    log = [0] * 256
+    x = 1
+    for i in range(255):
+        exp[i] = x
+        log[x] = i
+        x <<= 1
+        if x & 0x100:
+            x ^= 0x11D
+    for i in range(255, 512):
+        exp[i] = exp[i - 255]
+    return exp, log
+
+
+_QR_GF_EXP, _QR_GF_LOG = _qr_gf_tables()
+
+
+def _qr_gf_mul(a, b):
+    if a == 0 or b == 0:
+        return 0
+    return _QR_GF_EXP[_QR_GF_LOG[a] + _QR_GF_LOG[b]]
+
+
+def _qr_ecc(data, ecc_len):
+    """按生成多项式算出一块数据的纠错码字。"""
+    gen = [1]
+    for i in range(ecc_len):
+        nxt = [0] * (len(gen) + 1)
+        for j, coef in enumerate(gen):
+            nxt[j] ^= coef
+            nxt[j + 1] ^= _qr_gf_mul(coef, _QR_GF_EXP[i])
+        gen = nxt
+
+    res = list(data) + [0] * ecc_len
+    for i in range(len(data)):
+        coef = res[i]
+        if coef:
+            for j, g in enumerate(gen):
+                res[i + j] ^= _qr_gf_mul(g, coef)
+    return res[len(data):]
+
+
+def _qr_data_codewords(version):
+    """该版本可用的数据码字总数（不含纠错码字）。"""
+    _ecc, g1b, g1c, g2b, g2c = _QR_BLOCKS_M[version - 1]
+    return g1b * g1c + g2b * g2c
+
+
+def _qr_alignment_positions(version):
+    """校正图形的中心坐标（行列共用同一组）。"""
+    if version == 1:
+        return ()
+    size = version * 4 + 17
+    count = version // 7 + 2
+    step = 26 if version == 32 else (version * 4 + count * 2 + 1) // (count * 2 - 2) * 2
+    pos = [6] + [size - 7 - i * step for i in range(count - 1)][::-1]
+    return tuple(pos)
+
+
+def _qr_encode_codewords(payload, version):
+    """把字节内容编成数据码字序列（含分组、纠错与交错）。"""
+    cap_bits = _qr_data_codewords(version) * 8
+    count_bits = 8 if version < 10 else 16
+
+    out = bytearray()
+    buf = 0
+    buflen = 0
+
+    def put(value, length):
+        nonlocal buf, buflen
+        buf = (buf << length) | value
+        buflen += length
+        while buflen >= 8:
+            buflen -= 8
+            out.append((buf >> buflen) & 0xFF)
+        buf &= (1 << buflen) - 1
+
+    put(0b0100, 4)                       # 字节模式
+    put(len(payload), count_bits)
+    for b in payload:
+        put(b, 8)
+
+    used = 4 + count_bits + 8 * len(payload)
+    put(0, min(4, cap_bits - used))       # 终止符
+    if buflen:
+        put(0, 8 - buflen)                # 补齐到整字节
+
+    pad = (0xEC, 0x11)
+    i = 0
+    while len(out) < cap_bits // 8:
+        out.append(pad[i & 1])
+        i += 1
+
+    ecc_len, g1b, g1c, g2b, g2c = _QR_BLOCKS_M[version - 1]
+    blocks = []
+    pos = 0
+    for _ in range(g1b):
+        blocks.append(out[pos:pos + g1c])
+        pos += g1c
+    for _ in range(g2b):
+        blocks.append(out[pos:pos + g2c])
+        pos += g2c
+
+    eccs = [_qr_ecc(b, ecc_len) for b in blocks]
+
+    merged = bytearray()
+    longest = max(len(b) for b in blocks)
+    for i in range(longest):
+        for b in blocks:
+            if i < len(b):
+                merged.append(b[i])
+    for i in range(ecc_len):
+        for e in eccs:
+            merged.append(e[i])
+    return merged
+
+
+def _qr_matrix(version, codewords):
+    """按规范把码字铺进模块矩阵，返回 (矩阵, 功能图形标记)。"""
+    size = version * 4 + 17
+    mod = [bytearray(size) for _ in range(size)]
+    func = [bytearray(size) for _ in range(size)]
+
+    def put(r, c, dark):
+        mod[r][c] = 1 if dark else 0
+        func[r][c] = 1
+
+    # 定位图形（三个角）与分隔符
+    for base_r, base_c in ((0, 0), (0, size - 7), (size - 7, 0)):
+        for dr in range(-1, 8):
+            for dc in range(-1, 8):
+                r, c = base_r + dr, base_c + dc
+                if not (0 <= r < size and 0 <= c < size):
+                    continue
+                inside = 0 <= dr <= 6 and 0 <= dc <= 6
+                dark = inside and (dr in (0, 6) or dc in (0, 6)
+                                   or (2 <= dr <= 4 and 2 <= dc <= 4))
+                put(r, c, dark)
+
+    # 定时图形
+    for i in range(8, size - 8):
+        put(6, i, i % 2 == 0)
+        put(i, 6, i % 2 == 0)
+
+    # 校正图形
+    pos = _qr_alignment_positions(version)
+    last = pos[-1] if pos else -99
+    for r in pos:
+        for c in pos:
+            if (r, c) in ((6, 6), (6, last), (last, 6)):
+                continue
+            for dr in range(-2, 3):
+                for dc in range(-2, 3):
+                    put(r + dr, c + dc, max(abs(dr), abs(dc)) != 1)
+
+    # 先占位格式信息区与固定黑模块，稍后按掩码重绘
+    _qr_draw_format(mod, func, 0)
+
+    # 版本信息（版本 7 起）
+    if version >= 7:
+        rem = version
+        for _ in range(12):
+            rem = (rem << 1) ^ ((rem >> 11) * 0x1F25)
+        bits = (version << 12) | rem
+        for i in range(18):
+            bit = (bits >> i) & 1
+            a, b = size - 11 + i % 3, i // 3
+            put(b, a, bit)
+            put(a, b, bit)
+
+    # 数据区：从右下角起两列一组蛇形填充，跳过功能图形
+    idx = 0
+    total_bits = len(codewords) * 8
+    right = size - 1
+    while right >= 1:
+        if right == 6:
+            right = 5
+        for vert in range(size):
+            for j in range(2):
+                c = right - j
+                upward = ((right + 1) & 2) == 0
+                r = size - 1 - vert if upward else vert
+                if not func[r][c] and idx < total_bits:
+                    mod[r][c] = (codewords[idx >> 3] >> (7 - (idx & 7))) & 1
+                    idx += 1
+        right -= 2
+
+    return mod, func
+
+
+def _qr_draw_format(mod, func, mask):
+    """写入格式信息（纠错等级 + 掩码号，BCH(15,5) 校验后与固定值异或）。"""
+    size = len(mod)
+    data = (_QR_ECC_BITS_M << 3) | mask
+    rem = data
+    for _ in range(10):
+        rem = (rem << 1) ^ ((rem >> 9) * 0x537)
+    bits = ((data << 10) | rem) ^ 0x5412
+
+    def put(r, c, bit):
+        mod[r][c] = (bits >> bit) & 1
+        func[r][c] = 1
+
+    for i in range(6):
+        put(i, 8, i)
+    put(7, 8, 6)
+    put(8, 8, 7)
+    put(8, 7, 8)
+    for i in range(9, 15):
+        put(8, 14 - i, i)
+
+    for i in range(8):
+        put(8, size - 1 - i, i)
+    for i in range(8, 15):
+        put(size - 15 + i, 8, i)
+    put(size - 8, 8, 0)
+    mod[size - 8][8] = 1              # 固定黑模块，恒为深色
+
+
+def _qr_penalty(mod):
+    """按规范的四条规则给掩码打分，分数越低越好。"""
+    size = len(mod)
+    score = 0
+
+    # 规则 1：同色连续 5 个以上
+    for line in list(mod) + [bytearray(mod[r][c] for r in range(size)) for c in range(size)]:
+        run = 1
+        for i in range(1, size):
+            if line[i] == line[i - 1]:
+                run += 1
+            else:
+                if run >= 5:
+                    score += 3 + (run - 5)
+                run = 1
+        if run >= 5:
+            score += 3 + (run - 5)
+
+    # 规则 2：2x2 同色块
+    for r in range(size - 1):
+        row, nxt = mod[r], mod[r + 1]
+        for c in range(size - 1):
+            if row[c] == row[c + 1] == nxt[c] == nxt[c + 1]:
+                score += 3
+
+    # 规则 3：形如 1011101 且一侧带 4 个浅色的图案
+    pattern_a = (1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0)
+    pattern_b = tuple(reversed(pattern_a))
+    for line in list(mod) + [bytearray(mod[r][c] for r in range(size)) for c in range(size)]:
+        for i in range(size - 10):
+            seg = tuple(line[i:i + 11])
+            if seg == pattern_a or seg == pattern_b:
+                score += 40
+
+    # 规则 4：深色比例偏离 50%
+    dark = sum(sum(row) for row in mod)
+    total = size * size
+    score += int(abs(dark * 20 - total * 10) / total) * 10
+    return score
+
+
+def _qr_apply_mask(mod, func, mask):
+    size = len(mod)
+    for r in range(size):
+        for c in range(size):
+            if func[r][c]:
+                continue
+            if mask == 0:
+                invert = (r + c) % 2 == 0
+            elif mask == 1:
+                invert = r % 2 == 0
+            elif mask == 2:
+                invert = c % 3 == 0
+            elif mask == 3:
+                invert = (r + c) % 3 == 0
+            elif mask == 4:
+                invert = (r // 2 + c // 3) % 2 == 0
+            elif mask == 5:
+                invert = (r * c) % 2 + (r * c) % 3 == 0
+            elif mask == 6:
+                invert = ((r * c) % 2 + (r * c) % 3) % 2 == 0
+            else:
+                invert = ((r + c) % 2 + (r * c) % 3) % 2 == 0
+            if invert:
+                mod[r][c] ^= 1
+
+
+def qr_modules(text):
+    """把文本编成二维码模块矩阵（不含静区），自动选版本与掩码。"""
+    payload = str(text).encode('utf-8')
+    version = None
+    for ver in range(1, _QR_MAX_VERSION + 1):
+        count_bits = 8 if ver < 10 else 16
+        if 4 + count_bits + 8 * len(payload) <= _qr_data_codewords(ver) * 8:
+            version = ver
+            break
+    if version is None:
+        raise QrEncodeError('内容过长（最多 %d 字节）'
+                            % (_qr_data_codewords(_QR_MAX_VERSION) - 3))
+
+    codewords = _qr_encode_codewords(payload, version)
+    base, func = _qr_matrix(version, codewords)
+
+    best = None
+    for mask in range(8):
+        trial = [bytearray(row) for row in base]
+        _qr_apply_mask(trial, func, mask)
+        _qr_draw_format(trial, func, mask)
+        score = _qr_penalty(trial)
+        if best is None or score < best[0]:
+            best = (score, trial)
+    return best[1]
+
+
+def _png_gray(rows, width, height):
+    """把每行 0/1 的像素拼成 8 位灰度 PNG。"""
+    import struct
+    import zlib
+
+    raw = bytearray()
+    for row in rows:
+        raw.append(0)                                  # 过滤类型：None
+        line = bytearray()
+        for px in row:
+            line.extend(b'\x00\x00\x00' if px else b'\xff\xff\xff')
+        raw.extend(line)
+
+    def chunk(tag, body):
+        return (struct.pack('>I', len(body)) + tag + body
+                + struct.pack('>I', zlib.crc32(tag + body) & 0xFFFFFFFF))
+
+    ihdr = struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)   # 8 位真彩
+    return (b'\x89PNG\r\n\x1a\n'
+            + chunk(b'IHDR', ihdr)
+            + chunk(b'IDAT', zlib.compress(bytes(raw), 6))
+            + chunk(b'IEND', b''))
+
+
+def qr_png(text, size=400):
+    """生成指定边长（像素）的二维码 PNG；边长会按模块数取整到整数倍。"""
+    mod = qr_modules(text)
+    modules = len(mod) + _QR_QUIET * 2
+    scale = max(1, int(size) // modules)
+    edge = modules * scale
+
+    rows = []
+    blank_row = bytearray(edge)
+    for _ in range(_QR_QUIET * scale):
+        rows.append(blank_row)
+    for row in mod:
+        line = bytearray(edge)
+        for c, dark in enumerate(row):
+            if dark:
+                start = (_QR_QUIET + c) * scale
+                for k in range(start, start + scale):
+                    line[k] = 1
+        for _ in range(scale):
+            rows.append(line)
+    for _ in range(_QR_QUIET * scale):
+        rows.append(blank_row)
+
+    return _png_gray(rows, edge, edge)
+
+
 class QrProxy(object):
-    """二维码同源代理
+    """二维码生成器（本地编码，不依赖任何外部服务）
 
-    第三方接口只对 localhost / 127.0.0.1 回 `Access-Control-Allow-Origin`，
-    从局域网 IP 或域名访问时浏览器的 fetch 必然被 CORS 拦掉——「打包下载 zip」因此
-    在真实部署上必定降级（实测：NAS 上 zip 下载超时，落到 window.open 兜底）。
-    前端改为请求同源的 /qr，由服务端转发，同时把二维码收进 CSP 的 'self'。
+    以前这里是转发给第三方公开接口：该接口只对 localhost / 127.0.0.1 回
+    `Access-Control-Allow-Origin`，局域网访问时浏览器的 fetch 必然被拦，
+    打包下载只能降级；更麻烦的是机器不通外网时二维码根本出不来。
+    现在改成进程内按规范编码并缓存 PNG，前端仍请求同源的 /qr，
+    预览与下载都在本机完成。
 
-    安全要点：上游主机写死在 QR_UPSTREAM（不可由请求指定，杜绝 SSRF）；
-    data / size 严格校验后用 urlencode 拼装，杜绝参数注入；响应限体积、限类型。
+    安全要点：data / size 严格校验后再编码，超长内容直接拒绝。
     """
 
     def __init__(self):
@@ -1412,29 +1808,21 @@ class QrProxy(object):
         return max(int(v) for v in size.split('x')) <= 1024
 
     def get(self, data, size):
-        """返回 (content_type, bytes)；失败抛异常。"""
+        """返回 (content_type, bytes)；内容超出容量抛 QrEncodeError。"""
         key = (data, size)
         with self._lock:
             hit = self._cache.get(key)
         if hit is not None:
             return hit
 
-        params = urlencode({'data': data, 'size': size})
-        req = UrlRequest(QR_UPSTREAM + '?' + params,
-                         headers={'User-Agent': '%s/%s' % (APPNAME, APPVERSION)})
-        with url_open(req, timeout=15) as resp:
-            ctype = (resp.headers.get('Content-Type') or '').split(';')[0].strip().lower()
-            if resp.status != 200 or not ctype.startswith('image/'):
-                raise ValueError('upstream %s %s' % (resp.status, ctype or '-'))
-            blob = resp.read(QR_MAX_BYTES + 1)
-        if not blob or len(blob) > QR_MAX_BYTES:
-            raise ValueError('upstream size %d' % len(blob))
+        edge = max(int(v) for v in size.split('x'))
+        blob = qr_png(data, edge)
 
         with self._lock:
             if len(self._cache) >= QR_CACHE_MAX:
                 self._cache.clear()
-            self._cache[key] = (ctype, blob)
-        return (ctype, blob)
+            self._cache[key] = ('image/png', blob)
+        return ('image/png', blob)
 
 
 class SessionStore(object):
