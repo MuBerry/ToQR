@@ -177,12 +177,15 @@ python server/app.py --check                # 探测端口是否在监听
 
 ```
 ├── server/app.py          # 服务端（Python 标准库，单文件）
-├── ui/                    # 前端静态资源
+├── ui/                    # 前端静态资源（无构建步骤）
 │   ├── index.html         # 出码页（/、/qr、/qr-shop 共用，行为由地址决定）
 │   ├── qrscan.html        # 扫码识别页（/qrscan）
-│   ├── vendor/            # 内置解码器（ZXing，离线）
+│   ├── vendor/            # toqr-qr.js（浏览器内离线编码）、zxing.min.js（扫码解码）
 │   └── images/            # 图标
+├── fnos-qrcode/           # 飞牛 fnOS 形态：fpk/ 应用包、nginx/ + html/ 静态部署、安装包
+├── fnos-index/            # 单文件静态页（无后端）
 ├── docs/screenshots/      # 截图
+├── DEPLOY.md              # fpk 构建说明
 ├── Dockerfile
 ├── docker-compose.yml
 ├── CHANGELOG.md
@@ -195,6 +198,7 @@ python server/app.py --check                # 探测端口是否在监听
 
 ## 说明
 
-- **完全离线**：二维码由服务端按 QR Code Model 2 规范在本地编码成 PNG，不请求任何外部接口；前端也不再引用任何 CDN 资源，NAS 不通外网同样可用，内容不出本机
+- **默认完全离线**：二维码由服务端按 QR Code Model 2 规范在本地编码成 PNG，不请求任何外部接口；页面也不引用任何 CDN 资源，NAS 不通外网同样可用，内容不出本机
+- **解析器可切换**：输入区右上方可选「默认（本机编码）」/「备用1（浏览器内离线编码）」/「备用2（草料开放平台 API，服务端同源转发）」；只有显式选备用2 才会出外网
 - 飞牛 fnOS 形态在 [`fnos-qrcode/`](fnos-qrcode/) 目录：`fpk/` 打应用包（`bash fnos-qrcode/fpk/build-fpk.sh`），`nginx/` + `html/` 是纯静态部署；另有 [`fnos-index/`](fnos-index/) 单文件静态版
-- 三种页面（服务端版、静态版、应用包版）都已离线化：二维码在本机按 QR Code Model 2 编码，不依赖任何外部接口
+- 服务端只有 `server/app.py` 一个文件；fpk 版另有一份副本 `fnos-qrcode/fpk/app/server/app.py`，改服务端逻辑时两处都要同步
