@@ -97,4 +97,5 @@ python server/app.py --check                # 探测端口是否在监听
 ## 说明
 
 - **完全离线**：二维码由服务端按 QR Code Model 2 规范在本地编码成 PNG，不请求任何外部接口；前端也不再引用任何 CDN 资源，NAS 不通外网同样可用，内容不出本机
-- 飞牛 fnOS 原生应用包（fpk）版本保留在 [`fnos-qrcode` 分支](../../tree/fnos-qrcode)
+- 飞牛 fnOS 形态在 [`fnos-qrcode/`](fnos-qrcode/) 目录：`fpk/` 打应用包（`bash fnos-qrcode/fpk/build-fpk.sh`），`nginx/` + `html/` 是纯静态部署；另有 [`fnos-index/`](fnos-index/) 单文件静态版
+- 三种页面（服务端版、静态版、应用包版）都已离线化：二维码在本机按 QR Code Model 2 编码，不依赖任何外部接口
