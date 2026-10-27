@@ -16,7 +16,8 @@ LIST_ONLY=0
 [ "${1:-}" = "--list" ] && LIST_ONLY=1
 
 echo "==> 1/5 同步前端页面"
-SRC="$ROOT_DIR/../index.html"
+# 页面源码统一在 ui/index.html（根目录不再放重复副本）
+SRC="$ROOT_DIR/../ui/index.html"
 if [ ! -f "$SRC" ]; then
   echo "找不到前端源文件：$SRC" >&2
   exit 1
@@ -24,6 +25,20 @@ fi
 mkdir -p "$FPK_DIR/app/ui"
 cp "$SRC" "$FPK_DIR/app/ui/index.html"
 echo "    index.html -> app/ui/index.html ($(wc -c <"$FPK_DIR/app/ui/index.html") bytes)"
+
+# 扫码页与内置解码库（/qrscan 文根用）
+SCAN_SRC="$ROOT_DIR/../ui/qrscan.html"
+VENDOR_SRC="$ROOT_DIR/../ui/vendor"
+if [ -f "$SCAN_SRC" ]; then
+  cp "$SCAN_SRC" "$FPK_DIR/app/ui/qrscan.html"
+  echo "    qrscan.html -> app/ui/qrscan.html ($(wc -c <"$FPK_DIR/app/ui/qrscan.html") bytes)"
+fi
+if [ -d "$VENDOR_SRC" ]; then
+  rm -rf "$FPK_DIR/app/ui/vendor"
+  mkdir -p "$FPK_DIR/app/ui/vendor"
+  cp "$VENDOR_SRC"/* "$FPK_DIR/app/ui/vendor/" 2>/dev/null || true
+  echo "    vendor/ -> app/ui/vendor/ ($(du -sk "$FPK_DIR/app/ui/vendor" | cut -f1) KB)"
+fi
 
 echo "==> 2/5 整理命令权限"
 chmod 755 "$FPK_DIR"/cmd/* 2>/dev/null || true

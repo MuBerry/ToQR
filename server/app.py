@@ -86,6 +86,8 @@ CSP = '; '.join((
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
+    # 扫码页把摄像头流挂到 <video>，部分浏览器按 media-src 校验
+    "media-src 'self' blob:",
     "connect-src 'self'",
     "font-src 'self'",
     "object-src 'none'",
@@ -93,6 +95,17 @@ CSP = '; '.join((
     "form-action 'self'",
     "frame-ancestors 'none'",
 ))
+
+# 文根 → 页面文件。三个入口共用同一套页面，文根只决定页面默认行为，不做 301 跳转：
+#   /        与 /qr 一致：不筛选，按行原样出码
+#   /qr-shop 只提取文本里的链接出码
+#   /qrscan  摄像头/图片扫码识别（另一个页面）
+PAGE_ROUTES = {
+    '/': 'index.html',
+    '/qr': 'index.html',
+    '/qr-shop': 'index.html',
+    '/qrscan': 'qrscan.html',
+}
 
 SETTINGS_NAME = 'settings.json'
 
@@ -989,7 +1002,7 @@ class Handler(BaseHTTPRequestHandler):
             self._serve_settings()
             return
 
-        if path == '/qr':
+        if path == '/api/qr':
             self._serve_qr()
             return
 
@@ -1286,7 +1299,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/favicon.ico':
             self._send_file(os.path.join(root, 'images', 'icon_64.png'))
             return
-        rel = 'index.html' if path in ('/', '') else path.lstrip('/')
+        key = path.rstrip('/') or '/'
+        rel = PAGE_ROUTES.get(key, path.lstrip('/'))
         target = os.path.realpath(os.path.join(root, rel))
         if not (target == os.path.realpath(root) or target.startswith(os.path.realpath(root) + os.sep)):
             self._send(HTTPStatus.FORBIDDEN, 'forbidden', 'text/plain; charset=utf-8')

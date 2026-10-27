@@ -268,17 +268,13 @@
 
   /* ---------------- 链接识别（模式切换 / 平台标签 / 放大） ---------------- */
   .hint-tools{display:flex;align-items:center;gap:8px;flex:none}
-  .mode-switch{display:inline-flex;align-items:center;gap:2px;padding:2px;background:#f1f3f5;border-radius:7px;flex:none}
-  .mode-switch button{
-    border:none;background:transparent;font-family:inherit;font-size:12px;color:var(--text-4);
-    padding:3px 9px;border-radius:5px;cursor:pointer;white-space:nowrap;
-    transition:background-color .12s,color .12s;
+  .root-badge{
+    display:inline-flex;align-items:center;gap:5px;flex:none;
+    font-size:12px;color:var(--text-4);background:#f1f3f5;border-radius:6px;
+    padding:3px 9px;text-decoration:none;white-space:nowrap;transition:background-color .15s,color .15s;
   }
-  .mode-switch button:hover{color:var(--text-2)}
-  .mode-switch button[aria-selected="true"]{
-    background:#fff;color:var(--blue-dark);font-weight:600;
-    box-shadow:0 1px 2px rgba(16,24,40,.1);
-  }
+  .root-badge:hover{background:#e9edf1;color:var(--text-2)}
+  .root-badge b{font-weight:600;color:var(--text-3)}
   .link-hint{
     margin:-2px 0 10px;font-size:12px;color:var(--text-4);line-height:1.7;
   }
@@ -442,12 +438,7 @@
       <div class="hint-row">
         <p class="hint" id="inputHint">每行一个内容，将生成对应二维码</p>
         <div class="hint-tools">
-          <div class="mode-switch" id="modeSwitch" role="tablist" aria-label="识别方式">
-            <button type="button" role="tab" data-mode="smart" aria-selected="true"
-                    title="从文本中识别链接，只生成链接的二维码">智能识别</button>
-            <button type="button" role="tab" data-mode="raw" aria-selected="false"
-                    title="按行生成，内容原样编进二维码">按行原样</button>
-          </div>
+          <a class="root-badge" id="rootBadge" href="/qr-shop" title="点击切换到另一个文根"></a>
           <div class="tpl-wrap">
             <button type="button" class="mini-btn" id="btnTemplate" aria-haspopup="menu" aria-expanded="false" title="下载导入模板（CSV / TXT）">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -590,6 +581,7 @@
     <div class="modal-body">
       <p>在文本框中输入内容，每一行一个条目，系统将为每个条目生成对应的二维码。生成后可直接预览并保存需要的二维码。</p>
       <p>直接把购物 App 的分享文案整段粘进来也行：会自动识别其中的链接（京东、淘宝、天猫、拼多多、抖音等），只给链接生成二维码，文案里的其他字会被忽略。</p>
+      <p>本页行为由地址决定：<b>/qr</b>（含直接访问根地址）每行原样出码；<b>/qr-shop</b> 只提取文案里的链接出码；<b>/qrscan</b> 用摄像头或图片反查二维码 / 条形码里的内容。</p>
       <ul class="tips">
         <li>
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -657,10 +649,17 @@
 (function () {
   'use strict';
 
+  /* ============ 文根 ============ */
+  // 三个入口共用这一个页面，行为由路径决定（**不做跳转**，直接访问 / 就是 /qr 的内容）：
+  //   /        → 与原样出码一致
+  //   /qr      → 不筛选，每行原样编进二维码
+  //   /qr-shop → 只提取文本里的链接，仅给链接出码
+  const ROOT = /^\/qr-shop(\/|$)/.test(location.pathname) ? 'shop' : 'qr';
+
   /* ============ 二维码生成：本机服务端编码，离线可用 ============ */
   // 二维码由服务端（server/app.py）在本地按规范编码成 PNG，浏览器只取同源图片：
   // 不请求任何第三方接口，机器不通外网也能生成，内容不出本机。
-  const QR_BASE = 'qr';
+  const QR_BASE = '/api/qr';
   const QR_SIZE = 400;          // 生成尺寸（像素）
   const QR_SIZE_BIG = 800;      // 放大查看时用的尺寸，高分屏不糊
   const MAX_ITEMS = 200;        // 单次最多生成数量
@@ -773,7 +772,6 @@
   const toastEl   = $('toast');
   const inputHint = $('inputHint');
   const linkHint  = $('linkHint');
-  const modeSwitch = $('modeSwitch');
   const lightbox  = $('lightbox');
   const lbImg     = $('lbImg');
   const lbTitle   = $('lbTitle');
@@ -795,7 +793,7 @@
   let importState = null;  // 最近一次导入的文件信息
   let toastTimer = null;
   let lbIndex = 0;         // 灯箱当前展示的序号
-  let mode = 'smart';      // smart＝只出链接；raw＝按行原样
+  let mode = ROOT === 'shop' ? 'smart' : 'raw';   // shop＝只出链接；qr＝按行原样
 
   /* ============ 工具函数 ============ */
   function toast(msg, ms) {
@@ -831,16 +829,19 @@
     return { items: parseRawLines(), meta: null, fromLinks: false };
   }
 
-  /* ============ 识别模式与即时提示 ============ */
-  const MODE_KEY = 'qr-input-mode';
-
-  function setMode(next) {
-    mode = next === 'raw' ? 'raw' : 'smart';
-    Array.prototype.forEach.call(modeSwitch.querySelectorAll('button'), (b) => {
-      b.setAttribute('aria-selected', String(b.dataset.mode === mode));
-    });
-    try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
-    updateLinkHint();
+  /* ============ 文根标识与即时提示 ============ */
+  function renderRootBadge() {
+    const badge = $('rootBadge');
+    if (mode === 'smart') {
+      badge.innerHTML = '文根 <b>/qr-shop</b> · 只取链接';
+      badge.href = '/qr';
+      badge.title = '当前只提取文本里的链接出码，点击切换到 /qr（原样出码）';
+    } else {
+      badge.innerHTML = '文根 <b>/qr</b> · 原样出码';
+      badge.href = '/qr-shop';
+      badge.title = '当前按行原样出码，点击切换到 /qr-shop（只取链接）';
+    }
+    badge.href = mode === 'smart' ? '/qr' : '/qr-shop';
   }
 
   function updateLinkHint() {
@@ -1510,19 +1511,8 @@
 
   /* ============ 事件绑定 ============ */
   $('btnGen').addEventListener('click', () => handleGenerate(false));
-  $('btnExtract').addEventListener('click', () => {
-    setMode('smart');
-    handleGenerate(true);
-  });
+  $('btnExtract').addEventListener('click', () => handleGenerate(true));
   $('btnDownloadAll').addEventListener('click', handleDownloadAll);
-
-  // 识别方式切换：切完清空预览，避免看到上一轮的残留结果
-  modeSwitch.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-mode]');
-    if (!btn || btn.dataset.mode === mode) return;
-    setMode(btn.dataset.mode);
-    renderPreview([], null);
-  });
 
   // 边输入边提示识别到几个链接（防抖，避免每敲一个字就扫全文）
   let hintTimer = null;
@@ -1701,11 +1691,8 @@
   });
 
   /* ============ 初始化 ============ */
-  try {
-    const saved = localStorage.getItem(MODE_KEY);
-    if (saved === 'raw' || saved === 'smart') mode = saved;
-  } catch (e) {}
-  setMode(mode);
+  renderRootBadge();
+  updateLinkHint();
   renderHistory();
   renderPreview([]);
 })();
