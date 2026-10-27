@@ -2,53 +2,131 @@
 
 自托管二维码批量生成服务：把一批文本/链接粘贴进去，一键批量出码，支持在线预览、打包下载、历史记录。**粘贴购物 App 的分享文案会自动识别其中的链接**（京东/淘宝/天猫/拼多多/抖音/小红书等，含无协议短链），只给链接出码；点码放大；手机上点链接直接跳转对应 App。
 
-纯 Python 标准库实现，**零第三方依赖**。前端单文件，无构建步骤。**完全离线**：二维码在本地生成，页面不加载任何外部资源。
+纯 Python 标准库实现，**零第三方依赖**，无构建步骤。默认**完全离线**：二维码在服务端本地编码，页面不引用任何外部资源；也可以按需切换成「浏览器内离线编码」或「草料开放平台」解析器。
 
 ![首页](docs/screenshots/01-home.png)
 
-## 快速开始
+## 部署方式
 
-### 方式一：源码运行
+五种方式任选其一，装完浏览器打开 `http://<主机>:<端口>/` 即可使用。
+
+### 1. 源码安装
 
 ```bash
 git clone https://github.com/MuBerry/ToQR.git
 cd ToQR
-python server/app.py --port 8080
+python3 server/app.py --port 8080
 ```
 
-要求 Python 3.8+，无需 `pip install`。
+要求 Python 3.8+，**不需要 `pip install`**（纯标准库）。
 
-### 方式二：二进制运行（Windows / macOS / Linux）
+生产环境建议用 systemd 托管：
 
-从 [Releases](../../releases) 下载对应平台的单文件可执行程序：
+```ini
+# /etc/systemd/system/toqr.service
+[Unit]
+Description=ToQR 二维码批量生成器
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/toqr
+Environment=TOQR_ETC_DIR=/var/lib/toqr/etc
+Environment=TOQR_VAR_DIR=/var/lib/toqr/var
+ExecStart=/usr/bin/python3 /opt/toqr/server/app.py --port 8080
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
 
 ```bash
-# Windows (PowerShell)
-.\toqr-<版本>-windows-amd64.exe --port 8080
-
-# macOS（Apple Silicon）/ Linux
-chmod +x toqr-<版本>-<平台>
-./toqr-<版本>-<平台> --port 8080
+sudo systemctl daemon-reload
+sudo systemctl enable --now toqr      # 开机自启 + 立即启动
+journalctl -u toqr -f                 # 查看日志
 ```
 
-配置与数据自动落在可执行文件同目录的 `etc/`、`var/` 下；想换位置用环境变量 `TOQR_ETC_DIR` / `TOQR_VAR_DIR`。
+### 2. Docker（自带 Dockerfile）
 
-> macOS 首次运行如被 Gatekeeper 拦截：`xattr -d com.apple.quarantine toqr-*` 后再执行。
-> 二进制目前只提供 Apple Silicon（arm64）版；Intel Mac 可用 Docker 镜像（原生 amd64）或源码运行。
+仓库根目录的 `Dockerfile` 基于 `python:3.12-slim`，只拷 `server/` 和 `ui/`，不联网装依赖：
 
-### 方式三：Docker
+```bash
+git clone https://github.com/MuBerry/ToQR.git
+cd ToQR
+docker build -t toqr:latest .
+docker run -d --name toqr -p 8080:8080 -v toqr-data:/data toqr:latest
+```
+
+也可以直接用官方镜像（GitHub Actions 自动构建推送）：
 
 ```bash
 docker run -d --name toqr -p 8080:8080 -v toqr-data:/data ghcr.io/muberry/toqr:latest
 ```
 
-或使用 docker-compose：
+| 参数 | 说明 |
+| --- | --- |
+| `-p 8080:8080` | 左边改成宿主机想用的端口，容器内固定 8080 |
+| `-v toqr-data:/data` | `settings.json` 与会话持久化，容器内固定 `/data` |
+| `--set --auth on ...` | 预置登录账号，见下方「服务端管理」 |
+
+### 3. docker compose
 
 ```bash
-docker compose up -d
+git clone https://github.com/MuBerry/ToQR.git
+cd ToQR
+docker compose up -d          # 后台启动
+docker compose logs -f        # 查看日志
+docker compose down           # 停止并移除容器（数据卷保留）
 ```
 
-数据（`settings.json`、会话）持久化在 `toqr-data` 卷中。
+`docker-compose.yml` 已配好端口 8080 与 `toqr-data` 卷；要改端口或预置账号，用 `command:` 覆盖：
+
+```yaml
+    command: ["--port", "8080", "--set", "--auth", "on", "--user", "admin", "--pass", "yourpassword"]
+```
+
+### 4. 二进制运行（Windows / Linux / macOS）
+
+从 [Releases](../../releases) 下载对应平台的单文件可执行程序，无需 Python：
+
+```bash
+# Windows（命令行/PowerShell）
+.\toqr-<版本>-windows-amd64.exe --port 8080
+
+# Linux / macOS（Apple Silicon）
+chmod +x ./toqr-<版本>-<平台>
+./toqr-<版本>-<平台> --port 8080
+```
+
+配置与数据默认落在可执行文件同目录的 `etc/`、`var/`；想换位置用环境变量 `TOQR_ETC_DIR` / `TOQR_VAR_DIR`。
+
+> macOS 首次运行如被 Gatekeeper 拦截：`xattr -d com.apple.quarantine toqr-*` 后再执行。
+> 二进制提供 Windows / Linux 与 Apple Silicon（arm64）版；Intel Mac 可用 Docker 镜像或源码运行。
+
+### 5. 飞牛 fnOS
+
+| 形态 | 位置 | 用法 |
+| --- | --- | --- |
+| 应用包（fpk） | `fnos-qrcode/fnos-qrcode_<版本>.fpk` | 应用中心「手动安装」选这个文件；升级需先在应用中心卸载旧版 |
+| 纯静态（nginx） | `fnos-qrcode/nginx/` + `fnos-qrcode/html/` | 挂到已有 Web 服务或反代后面 |
+| 单文件静态页 | `fnos-index/index.html` | 丢到任意 Web 目录即可，二维码在浏览器内生成 |
+
+应用包自带 Python 服务与 `/qrscan` 扫码页；纯静态形态没有后端，扫码页不可用（且仍需 HTTPS 才能调摄像头）。
+
+### 端口与配置
+
+```bash
+python server/app.py --port 9000            # 指定端口启动（不写配置）
+python server/app.py --set --port 9000      # 把端口写进配置（重启后生效）
+python server/app.py --print-port           # 查看当前配置端口
+python server/app.py --check                # 探测端口是否在监听
+```
+
+配置目录优先级：`$TOQR_ETC_DIR` > 程序目录 `etc/`；运行数据：`$TOQR_VAR_DIR` > 程序目录 `var/`。
+
+### HTTPS 与摄像头
+
+`/qrscan` 调摄像头需要**安全上下文**：HTTPS 域名或 `localhost`。用 `http://<局域网IP>:<端口>` 访问时页面会提示并禁用摄像头按钮，图片识别不受影响。建议用 Nginx / Caddy / 飞牛反代挂一层 HTTPS。
 
 ## 功能特性
 
