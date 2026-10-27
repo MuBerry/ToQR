@@ -16,12 +16,11 @@
 
 | 位置 | 内容 |
 | --- | --- |
-| `server/` + `ui/` | 通用部署版：Python 服务端 + 单文件前端（Docker / 二进制 / 源码） |
-| `index.html` | 与服务端 `ui/index.html` 同源，供 `fnos-qrcode/fpk/build-fpk.sh` 复制进应用包 |
-| `fnos-qrcode/` | 飞牛 fnOS 两种形态：`fpk/`（应用包）与 `nginx/` + `html/`（纯静态，页面内嵌编码器） |
-| `fnos-index/` | 纯静态单文件版（无后端，页面内嵌编码器） |
+| `server/` + `ui/` | 通用部署版：Python 服务端 + 前端页面（Docker / 二进制 / 源码） |
+| `fnos-qrcode/fpk/` | 飞牛应用包源码，`build-fpk.sh` 会从 `ui/` 复制页面与解码库到 `app/ui/` |
+| `fnos-qrcode/html/` + `nginx/` | 纯静态部署，页面由 `tools/sync-static.py` 从 `ui/` 生成 |
 
-历史分支：`fnos-qrcode`、`feature/qr-shop` 已并入 `main`（tag `v1.2.3` 起以 `main` 为准）。
+历史分支：`fnos-qrcode`、`feature/qr-shop` 已并入 `main`（tag `v1.2.3` 起以 `main` 为准；v1.2.8 起安装包只发 Release，不入库）。
 
 ---
 
@@ -84,14 +83,13 @@
 ├── .gitattributes                  # 强制文本 LF（cmd/ 脚本在 Linux 上必须 LF）
 ├── .gitignore
 ├── DEPLOY.md                       # 本文件
-└── fnos-qrcode/                    # 分支 fnos-qrcode 引入的部署目录
+└── fnos-qrcode/                    # 飞牛部署目录
     ├── README.md                   # 静态部署（docker + nginx）指导
-    ├── fnos-qrcode.fpk             # ★ FPK 构建产物，76840 B，可直接安装
-    ├── index.html                  # 静态部署用的页面副本
-    ├── docker-compose.yml          # 静态部署方案 A
-    ├── html/fnos-qrcode/index.html # 静态部署容器挂载副本
+    ├── index.html                  # 静态单页（由 tools/sync-static.py 生成）
+    ├── docker-compose.yml          # 静态部署方案 A（nginx:alpine）
+    ├── html/fnos-qrcode/           # 静态整站目录（index / qrscan / vendor）
     ├── nginx/                      # 静态部署方案 B（反代配置）
-    ├── sync.sh                     # 主版本 → 静态副本 同步脚本
+    ├── tools/sync-static.py        # 从 ui/ 生成静态副本
     └── fpk/                        # ★ FPK 工程（本文档主题）
         ├── manifest                # 应用清单
         ├── build-fpk.sh            # 一键构建脚本

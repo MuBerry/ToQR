@@ -1,8 +1,9 @@
 # 二维码批量生成器 · 飞牛 fnOS 部署包
 
-> 对应 git 分支：`fnos-qrcode`（`main` 分支是开发主版本，本分支只多出这个部署包）
+> 本目录是主仓库的一部分：`fpk/` 打应用包，`html/` + `nginx/` 是纯静态部署。
+> 页面**不手改**，由 `python3 fnos-qrcode/tools/sync-static.py` 从 `ui/` 生成。
 
-本分支提供**两种**部署形态，按需要选：
+这里提供**两种**部署形态，按需要选：
 
 | 形态 | 位置 | 适用 | 特点 |
 | --- | --- | --- | --- |
@@ -11,7 +12,7 @@
 
 > 只想用 FPK 的话，直接看 **[`fpk/README.md`](./fpk/README.md)**，本文件讲的是下面的静态部署方式。
 
-纯静态单文件页面，无后端、无构建、无本地依赖。放上去就能用，最终目标是拿到两个地址：
+纯静态页面，无后端、无构建、无本地依赖（二维码在浏览器内生成）。放上去就能用，最终目标是拿到两个地址：
 
 | 访问方式 | 地址示例 |
 | --- | --- |
@@ -51,11 +52,14 @@ fnos-qrcode/
 │   └── reverse-proxy.conf             # 方案 B：已有 nginx 的反代片段
 ├── html/
 │   └── fnos-qrcode/
-│       └── index.html                 # 容器挂载用的副本（内容与上面完全一致）
-└── sync.sh                            # 改完根目录主版本后，一键同步两份副本
+│       ├── index.html                 # 容器挂载用的副本（与上面完全一致）
+│       ├── qrscan.html                # 扫码页（页面内解码，无需后端）
+│       └── vendor/                    # 页面依赖：toqr-qr.js、zxing.min.js
+└── tools/
+    └── sync-static.py                 # 从仓库 ui/ 生成上面这些静态副本
 ```
 
-> `index.html` 有三份（含仓库根目录那份），内容完全一致。维护时只改仓库根目录的 `index.html`，然后执行 `bash fnos-qrcode/sync.sh`。
+> 页面由脚本生成、不要手改：改完 `ui/` 后执行 `python3 fnos-qrcode/tools/sync-static.py` 即可（会自动去掉依赖后端的顶栏与解析器下拉，把引擎固定为浏览器内编码）。
 
 ---
 
@@ -217,9 +221,9 @@ https://qrcode.你的域名.com/fnos-qrcode/   ← 同一份内容，两种地�
 ## 6. 更新页面
 
 ```bash
-# 1. 改仓库根目录的 index.html（开发主版本）
-# 2. 同步到部署包
-bash fnos-qrcode/sync.sh
+# 1. 改仓库 ui/ 下的页面（开发主版本）
+# 2. 重新生成静态副本
+python3 fnos-qrcode/tools/sync-static.py
 
 # 3. 传回飞牛后：
 #    改的是 html/ 目录里的文件 → 立刻生效（目录是实时挂载的），刷新浏览器即可

@@ -1,3 +1,4 @@
+<!-- 本文件由 fnos-qrcode/tools/sync-static.py 从 ui/ 生成，请勿手改 -->
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -44,18 +45,20 @@
     position:sticky;top:0;z-index:20;
   }
   .topbar-inner{
-    height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+    height:64px;display:flex;align-items:center;justify-content:flex-start;gap:16px;
   }
   .brand{display:flex;align-items:center;gap:10px;min-width:0}
   .brand h1{
     font-size:18px;font-weight:700;color:var(--text-1);letter-spacing:.2px;white-space:nowrap;
   }
   .brand-sub{font-size:13px;color:var(--text-4);white-space:nowrap}
-  .topbar-right{display:flex;align-items:center;gap:14px;min-width:0}
+  /* 两页标题文字长短不同，给标题块固定占位，保证按钮起点完全一致 */
+  @media (min-width:861px){ .brand{min-width:200px} }
+  .topbar-right{display:flex;align-items:center;gap:14px;min-width:0;margin-left:auto;flex:none}
 
   /* 顶栏「使用说明」按钮 */
   .help-btn{
-    flex:none;display:inline-flex;align-items:center;gap:6px;
+    flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
     height:32px;padding:0 12px;border-radius:8px;cursor:pointer;
     background:#f3f6fa;border:1px solid #e3e8ef;color:var(--text-2);
     font-family:inherit;font-size:13px;font-weight:500;
@@ -132,8 +135,8 @@
   .grid .card{margin-top:0}
 
   .panel-input{padding:20px 22px 22px;display:flex;flex-direction:column}
-  .hint-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:8px 0 10px}
-  .hint{font-size:12.5px;color:var(--text-4)}
+  .hint-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:nowrap;margin:8px 0 10px}
+  .hint{font-size:12.5px;color:var(--text-4);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mini-btn{
     display:inline-flex;align-items:center;gap:4px;flex:none;
     font-size:12px;font-family:inherit;color:var(--blue);
@@ -268,17 +271,36 @@
 
   /* ---------------- 链接识别（模式切换 / 平台标签 / 放大） ---------------- */
   .hint-tools{display:flex;align-items:center;gap:8px;flex:none}
-  .mode-switch{display:inline-flex;align-items:center;gap:2px;padding:2px;background:#f1f3f5;border-radius:7px;flex:none}
-  .mode-switch button{
-    border:none;background:transparent;font-family:inherit;font-size:12px;color:var(--text-4);
-    padding:3px 9px;border-radius:5px;cursor:pointer;white-space:nowrap;
-    transition:background-color .12s,color .12s;
+  .engine-wrap{
+    display:inline-flex;align-items:center;flex:none;
+    height:28px;padding:0 4px 0 8px;border:1px solid var(--input-border);
+    border-radius:6px;background:#fff;font-size:12px;color:var(--text-4);
   }
-  .mode-switch button:hover{color:var(--text-2)}
-  .mode-switch button[aria-selected="true"]{
-    background:#fff;color:var(--blue-dark);font-weight:600;
-    box-shadow:0 1px 2px rgba(16,24,40,.1);
+  .engine-wrap select{
+    border:none;outline:none;background:transparent;font-family:inherit;font-size:12px;
+    color:var(--text-2);height:26px;padding:0 16px 0 0;cursor:pointer;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9.5l6 6 6-6' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 0 center;
   }
+  .engine-wrap select:focus-visible{border-radius:4px;box-shadow:0 0 0 3px rgba(59,130,246,.18)}
+  /* 顶栏功能入口（对应两个文根） */
+  .root-nav{display:flex;align-items:center;gap:8px;margin-left:6px;min-width:0}
+  .root-tab{
+    display:inline-flex;align-items:center;gap:6px;flex:none;
+    height:34px;padding:0 14px;border-radius:8px;text-decoration:none;
+    font-size:13px;font-weight:500;color:var(--text-3);
+    background:#f5f7f9;border:1px solid #e8ebef;
+    transition:background-color .15s,border-color .15s,color .15s;
+  }
+  .root-tab svg{flex:none;color:var(--text-4);transition:color .15s}
+  .root-tab:hover{background:#eef2f7;border-color:#d8dee6;color:var(--text-1)}
+  .root-tab:hover svg{color:var(--blue)}
+  .root-tab[aria-current="page"]{
+    background:#eff6ff;border-color:#bfdbfe;color:var(--blue-dark);font-weight:600;
+  }
+  .root-tab[aria-current="page"] svg{color:var(--blue)}
+  .root-tab .short{display:none}
   .link-hint{
     margin:-2px 0 10px;font-size:12px;color:var(--text-4);line-height:1.7;
   }
@@ -365,14 +387,25 @@
   }
   .toast.show{opacity:1;transform:translate(-50%,0)}
 
+  @media (max-width:1080px){
+    .brand-sub{display:none}
+    .root-tab{padding:0 11px;font-size:12.5px}
+    .root-nav{gap:6px}
+  }
   @media (max-width:860px){
     .grid{grid-template-columns:1fr}
     .brand-sub{display:none}
-    .topbar-inner{height:56px}
-    .help-btn{height:34px;padding:0 11px;font-size:12.5px;border-radius:17px}
+    .topbar-inner{height:auto;flex-wrap:wrap;padding-top:10px;padding-bottom:8px;gap:8px}
+    .root-nav{order:3;width:100%;margin:0;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+    .root-nav::-webkit-scrollbar{display:none}
+    .root-tab{height:32px;padding:0 11px;font-size:12.5px;border-radius:16px}
+    .root-tab .full{display:none}
+    .root-tab .short{display:inline}
+    .help-btn{height:32px;padding:0 11px;font-size:12.5px;border-radius:16px}
   }
   /* 手机上使用说明改为底部抽屉，避免小屏弹窗被键盘/工具栏挤压 */
   @media (max-width:560px){
+    .hint-row{flex-wrap:wrap}
     .container{padding:0 16px}
     .modal{align-items:flex-end;padding:0}
     .modal-card{
@@ -442,12 +475,6 @@
       <div class="hint-row">
         <p class="hint" id="inputHint">每行一个内容，将生成对应二维码</p>
         <div class="hint-tools">
-          <div class="mode-switch" id="modeSwitch" role="tablist" aria-label="识别方式">
-            <button type="button" role="tab" data-mode="smart" aria-selected="true"
-                    title="从文本中识别链接，只生成链接的二维码">智能识别</button>
-            <button type="button" role="tab" data-mode="raw" aria-selected="false"
-                    title="按行生成，内容原样编进二维码">按行原样</button>
-          </div>
           <div class="tpl-wrap">
             <button type="button" class="mini-btn" id="btnTemplate" aria-haspopup="menu" aria-expanded="false" title="下载导入模板（CSV / TXT）">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -570,7 +597,7 @@
 </main>
 
 <footer>
-  二维码由页面内置编码器在本机生成，不联网、不上传 · 内容只留在你自己的设备上
+  二维码在浏览器内本地生成，不联网、不上传 · 内容只留在你自己的设备上
 </footer>
 
 <!-- 使用说明弹窗 -->
@@ -590,6 +617,8 @@
     <div class="modal-body">
       <p>在文本框中输入内容，每一行一个条目，系统将为每个条目生成对应的二维码。生成后可直接预览并保存需要的二维码。</p>
       <p>直接把购物 App 的分享文案整段粘进来也行：会自动识别其中的链接（京东、淘宝、天猫、拼多多、抖音等），只给链接生成二维码，文案里的其他字会被忽略。</p>
+      <p>本页行为由地址决定：<b>/qr</b>（含直接访问根地址）每行原样出码；<b>/qr-shop</b> 只提取文案里的链接出码；<b>/qrscan</b> 用摄像头或图片反查二维码 / 条形码里的内容。</p>
+      <p><b>解析器</b>：输入框右上方可以切换出码引擎 —— 「默认」由本机服务端编码（推荐，不联网）；「备用1 · 离线」在浏览器里直接生成，连服务端都不经过；「备用2 · 草料 API」调用草料开放平台的公开接口，需要服务器能访问外网。选择会记在浏览器里。</p>
       <ul class="tips">
         <li>
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -653,358 +682,43 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
-/* ToQR 内置二维码编码器 —— QR Code Model 2，字节模式（UTF-8），纠错等级 M
- * 纯前端：不联网、不依赖任何第三方库。用法：ToQR.dataUrl(text, 400) -> data:image/png
- */
-var ToQR = (function () {
-  'use strict';
-
-  // 版本 → [每块纠错码字, 组1块数, 组1数据码字, 组2块数, 组2数据码字]
-  var BLOCKS_M = [
-    [10, 1, 16, 0, 0], [16, 1, 28, 0, 0], [26, 1, 44, 0, 0], [18, 2, 32, 0, 0],
-    [24, 2, 43, 0, 0], [16, 4, 27, 0, 0], [18, 4, 31, 0, 0], [22, 2, 38, 2, 39],
-    [22, 3, 36, 2, 37], [26, 4, 43, 1, 44], [30, 1, 50, 4, 51], [22, 6, 36, 2, 37],
-    [22, 8, 37, 1, 38], [24, 4, 40, 5, 41], [24, 5, 41, 5, 42], [28, 7, 45, 3, 46],
-    [28, 10, 46, 1, 47], [26, 9, 43, 4, 44], [26, 3, 44, 11, 45], [26, 3, 41, 13, 42],
-    [26, 17, 42, 0, 0], [28, 17, 46, 0, 0], [28, 4, 47, 14, 48], [28, 6, 45, 14, 46],
-    [28, 8, 47, 13, 48], [28, 19, 46, 4, 47], [28, 22, 45, 3, 46], [28, 3, 45, 23, 46],
-    [28, 21, 45, 7, 46], [28, 19, 47, 10, 48], [28, 2, 46, 29, 47], [28, 10, 46, 23, 47],
-    [28, 14, 46, 21, 47], [28, 14, 46, 23, 47], [28, 12, 47, 26, 48], [28, 6, 47, 34, 48],
-    [28, 29, 46, 14, 47], [28, 13, 46, 32, 47], [28, 40, 47, 7, 48], [28, 18, 47, 31, 48]
-  ];
-  var MAX_VERSION = 40;
-  var QUIET = 4;
-
-  var EXP = new Uint8Array(512);
-  var LOG = new Uint8Array(256);
-  (function () {
-    var x = 1, i;
-    for (i = 0; i < 255; i++) {
-      EXP[i] = x;
-      LOG[x] = i;
-      x <<= 1;
-      if (x & 0x100) x ^= 0x11D;
-    }
-    for (i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
-  })();
-
-  function gfMul(a, b) {
-    return (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
-  }
-
-  function dataCodewords(version) {
-    var b = BLOCKS_M[version - 1];
-    return b[1] * b[2] + b[3] * b[4];
-  }
-
-  function eccFor(data, eccLen) {
-    var gen = [1], i, j;
-    for (i = 0; i < eccLen; i++) {
-      var next = new Array(gen.length + 1);
-      for (j = 0; j < next.length; j++) next[j] = 0;
-      for (j = 0; j < gen.length; j++) {
-        next[j] ^= gen[j];
-        next[j + 1] ^= gfMul(gen[j], EXP[i]);
-      }
-      gen = next;
-    }
-    var res = data.slice();
-    for (i = 0; i < eccLen; i++) res.push(0);
-    for (i = 0; i < data.length; i++) {
-      var coef = res[i];
-      if (coef) {
-        for (j = 0; j < gen.length; j++) res[i + j] ^= gfMul(gen[j], coef);
-      }
-    }
-    return res.slice(data.length);
-  }
-
-  function alignmentPositions(version) {
-    if (version === 1) return [];
-    var size = version * 4 + 17;
-    var count = Math.floor(version / 7) + 2;
-    var step = version === 32 ? 26
-      : Math.floor((version * 4 + count * 2 + 1) / (count * 2 - 2)) * 2;
-    var pos = [6];
-    for (var i = count - 2; i >= 0; i--) pos.push(size - 7 - i * step);
-    return pos;
-  }
-
-  function encodeCodewords(bytes, version) {
-    var capBits = dataCodewords(version) * 8;
-    var ccBits = version < 10 ? 8 : 16;
-    var out = [], buf = 0, buflen = 0;
-
-    function put(val, len) {
-      for (var i = len - 1; i >= 0; i--) {
-        buf = (buf << 1) | ((val >> i) & 1);
-        buflen++;
-        if (buflen === 8) { out.push(buf & 0xFF); buf = 0; buflen = 0; }
-      }
-    }
-
-    put(0b0100, 4);
-    put(bytes.length, ccBits);
-    for (var i = 0; i < bytes.length; i++) put(bytes[i], 8);
-
-    var used = 4 + ccBits + 8 * bytes.length;
-    put(0, Math.min(4, capBits - used));
-    if (buflen > 0) put(0, 8 - buflen);
-
-    var pad = [0xEC, 0x11], k = 0;
-    while (out.length < capBits / 8) { out.push(pad[k & 1]); k++; }
-
-    var b = BLOCKS_M[version - 1];
-    var eccLen = b[0], blocks = [], pos = 0, n;
-    for (n = 0; n < b[1]; n++) { blocks.push(out.slice(pos, pos + b[2])); pos += b[2]; }
-    for (n = 0; n < b[3]; n++) { blocks.push(out.slice(pos, pos + b[4])); pos += b[4]; }
-
-    var eccs = blocks.map(function (blk) { return eccFor(blk, eccLen); });
-    var merged = [], longest = 0, m;
-    for (m = 0; m < blocks.length; m++) longest = Math.max(longest, blocks[m].length);
-    for (i = 0; i < longest; i++) {
-      for (m = 0; m < blocks.length; m++) {
-        if (i < blocks[m].length) merged.push(blocks[m][i]);
-      }
-    }
-    for (i = 0; i < eccLen; i++) {
-      for (m = 0; m < eccs.length; m++) merged.push(eccs[m][i]);
-    }
-    return merged;
-  }
-
-  function drawFormat(mod, func, mask) {
-    var size = mod.length;
-    var data = mask;            // 纠错等级 M 的两位是 00
-    var rem = data, i;
-    for (i = 0; i < 10; i++) rem = (rem << 1) ^ (((rem >> 9) & 1) * 0x537);
-    var bits = ((data << 10) | rem) ^ 0x5412;
-
-    function put(r, c, bit) {
-      mod[r][c] = (bits >> bit) & 1;
-      func[r][c] = 1;
-    }
-    for (i = 0; i <= 5; i++) put(i, 8, i);
-    put(7, 8, 6);
-    put(8, 8, 7);
-    put(8, 7, 8);
-    for (i = 9; i < 15; i++) put(8, 14 - i, i);
-    for (i = 0; i < 8; i++) put(8, size - 1 - i, i);
-    for (i = 8; i < 15; i++) put(size - 15 + i, 8, i);
-    put(size - 8, 8, 0);
-    mod[size - 8][8] = 1;
-  }
-
-  function buildMatrix(version, codewords) {
-    var size = version * 4 + 17, r, c, i, j, dr, dc;
-    var mod = [], func = [];
-    for (r = 0; r < size; r++) {
-      mod.push(new Uint8Array(size));
-      func.push(new Uint8Array(size));
-    }
-    function put(rr, cc, dark) {
-      mod[rr][cc] = dark ? 1 : 0;
-      func[rr][cc] = 1;
-    }
-
-    var corners = [[0, 0], [0, size - 7], [size - 7, 0]];
-    for (i = 0; i < corners.length; i++) {
-      var br = corners[i][0], bc = corners[i][1];
-      for (dr = -1; dr <= 7; dr++) {
-        for (dc = -1; dc <= 7; dc++) {
-          r = br + dr; c = bc + dc;
-          if (r < 0 || r >= size || c < 0 || c >= size) continue;
-          var inside = dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6;
-          var dark = inside && (dr === 0 || dr === 6 || dc === 0 || dc === 6
-            || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
-          put(r, c, dark);
-        }
-      }
-    }
-
-    for (i = 8; i < size - 8; i++) {
-      put(6, i, i % 2 === 0);
-      put(i, 6, i % 2 === 0);
-    }
-
-    var pos = alignmentPositions(version);
-    var last = pos.length ? pos[pos.length - 1] : -99;
-    for (i = 0; i < pos.length; i++) {
-      for (j = 0; j < pos.length; j++) {
-        r = pos[i]; c = pos[j];
-        if ((r === 6 && c === 6) || (r === 6 && c === last) || (r === last && c === 6)) continue;
-        for (dr = -2; dr <= 2; dr++) {
-          for (dc = -2; dc <= 2; dc++) {
-            put(r + dr, c + dc, Math.max(Math.abs(dr), Math.abs(dc)) !== 1);
-          }
-        }
-      }
-    }
-
-    drawFormat(mod, func, 0);
-
-    if (version >= 7) {
-      var rem = version;
-      for (i = 0; i < 12; i++) rem = (rem << 1) ^ (((rem >> 11) & 1) * 0x1F25);
-      var vbits = (version << 12) | rem;
-      for (i = 0; i < 18; i++) {
-        var bit = (vbits >> i) & 1;
-        var a = size - 11 + i % 3, b2 = Math.floor(i / 3);
-        put(b2, a, bit);
-        put(a, b2, bit);
-      }
-    }
-
-    var idx = 0, totalBits = codewords.length * 8, right = size - 1;
-    while (right >= 1) {
-      if (right === 6) right = 5;
-      for (var vert = 0; vert < size; vert++) {
-        for (j = 0; j < 2; j++) {
-          c = right - j;
-          var upward = ((right + 1) & 2) === 0;
-          r = upward ? size - 1 - vert : vert;
-          if (!func[r][c] && idx < totalBits) {
-            mod[r][c] = (codewords[idx >> 3] >> (7 - (idx & 7))) & 1;
-            idx++;
-          }
-        }
-      }
-      right -= 2;
-    }
-    return { mod: mod, func: func };
-  }
-
-  function applyMask(mod, func, mask) {
-    var size = mod.length, r, c, invert;
-    for (r = 0; r < size; r++) {
-      for (c = 0; c < size; c++) {
-        if (func[r][c]) continue;
-        if (mask === 0) invert = (r + c) % 2 === 0;
-        else if (mask === 1) invert = r % 2 === 0;
-        else if (mask === 2) invert = c % 3 === 0;
-        else if (mask === 3) invert = (r + c) % 3 === 0;
-        else if (mask === 4) invert = (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
-        else if (mask === 5) invert = (r * c) % 2 + (r * c) % 3 === 0;
-        else if (mask === 6) invert = ((r * c) % 2 + (r * c) % 3) % 2 === 0;
-        else invert = ((r + c) % 2 + (r * c) % 3) % 2 === 0;
-        if (invert) mod[r][c] ^= 1;
-      }
-    }
-  }
-
-  function penalty(mod) {
-    var size = mod.length, score = 0, r, c, i, run, line;
-
-    function scanLine(get) {
-      var s = 0;
-      run = 1;
-      for (var k = 1; k < size; k++) {
-        if (get(k) === get(k - 1)) run++;
-        else { if (run >= 5) s += 3 + (run - 5); run = 1; }
-      }
-      if (run >= 5) s += 3 + (run - 5);
-      return s;
-    }
-
-    for (r = 0; r < size; r++) score += scanLine(function (k) { return mod[r][k]; });
-    for (c = 0; c < size; c++) score += scanLine(function (k) { return mod[k][c]; });
-
-    for (r = 0; r < size - 1; r++) {
-      for (c = 0; c < size - 1; c++) {
-        var v = mod[r][c];
-        if (v === mod[r][c + 1] && v === mod[r + 1][c] && v === mod[r + 1][c + 1]) score += 3;
-      }
-    }
-
-    var pa = [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0];
-    var pb = [0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1];
-    function findPattern(get) {
-      var s = 0;
-      for (var k = 0; k + 11 <= size; k++) {
-        var okA = true, okB = true;
-        for (var t = 0; t < 11; t++) {
-          var val = get(k + t);
-          if (val !== pa[t]) okA = false;
-          if (val !== pb[t]) okB = false;
-          if (!okA && !okB) break;
-        }
-        if (okA || okB) s += 40;
-      }
-      return s;
-    }
-    for (r = 0; r < size; r++) score += findPattern(function (k) { return mod[r][k]; });
-    for (c = 0; c < size; c++) score += findPattern(function (k) { return mod[k][c]; });
-
-    var dark = 0;
-    for (r = 0; r < size; r++) for (c = 0; c < size; c++) dark += mod[r][c];
-    var total = size * size;
-    score += Math.floor(Math.abs(dark * 20 - total * 10) / total) * 10;
-    return score;
-  }
-
-  function modules(text) {
-    var bytes = new TextEncoder().encode(String(text));
-    var version = 0, v, ccBits;
-    for (v = 1; v <= MAX_VERSION; v++) {
-      ccBits = v < 10 ? 8 : 16;
-      if (4 + ccBits + 8 * bytes.length <= dataCodewords(v) * 8) { version = v; break; }
-    }
-    if (!version) throw new Error('内容过长');
-
-    var cw = encodeCodewords(bytes, version);
-    var built = buildMatrix(version, cw);
-    var best = null, bestScore = Infinity;
-    for (var mask = 0; mask < 8; mask++) {
-      var trial = built.mod.map(function (row) { return new Uint8Array(row); });
-      applyMask(trial, built.func, mask);
-      drawFormat(trial, built.func, mask);
-      var s = penalty(trial);
-      if (s < bestScore) { bestScore = s; best = trial; }
-    }
-    return best;
-  }
-
-  function dataUrl(text, size) {
-    var mod = modules(text);
-    var count = mod.length + QUIET * 2;
-    var scale = Math.max(1, Math.floor((size || 400) / count));
-    var edge = count * scale;
-    var canvas = document.createElement('canvas');
-    canvas.width = edge;
-    canvas.height = edge;
-    var ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, edge, edge);
-    ctx.fillStyle = '#000';
-    for (var r = 0; r < mod.length; r++) {
-      for (var c = 0; c < mod.length; c++) {
-        if (mod[r][c]) {
-          ctx.fillRect((QUIET + c) * scale, (QUIET + r) * scale, scale, scale);
-        }
-      }
-    }
-    return canvas.toDataURL('image/png');
-  }
-
-  return { modules: modules, dataUrl: dataUrl };
-})();
-</script>
+<script src="vendor/toqr-qr.js"></script>
 <script>
 (function () {
   'use strict';
 
-  /* ============ 二维码：页面内置编码器生成，离线可用 ============ */
-  // 纯静态部署，没有后端：直接在本机按 QR Code Model 2 编码成 data URL，
-  // 不请求任何第三方接口，浏览器不需要外网，内容不出本机。
+  /* ============ 文根 ============ */
+  // 三个入口共用这一个页面，行为由路径决定（**不做跳转**，直接访问 / 就是 /qr 的内容）：
+  //   /        → 与原样出码一致
+  //   /qr      → 不筛选，每行原样编进二维码
+  //   /qr-shop → 只提取文本里的链接，仅给链接出码
+  const ROOT = /^\/qr-shop(\/|$)/.test(location.pathname) ? 'shop' : 'qr';
+
+  /* ============ 二维码生成：本机服务端编码，离线可用 ============ */
+  // 二维码由服务端（server/app.py）在本地按规范编码成 PNG，浏览器只取同源图片：
+  // 不请求任何第三方接口，机器不通外网也能生成，内容不出本机。
+  const QR_BASE = '/api/qr';
   const QR_SIZE = 400;          // 生成尺寸（像素）
   const QR_SIZE_BIG = 800;      // 放大查看时用的尺寸，高分屏不糊
   const MAX_ITEMS = 200;        // 单次最多生成数量
   const HISTORY_KEY = 'qr-batch-history-v1';
   const HISTORY_LIMIT = 8;
 
+  // 解析器：server=本机编码（默认）；offline=浏览器内编码，不经过服务端；
+  //         caoliao=草料开放平台公开接口，由服务端同源转发（需服务端能上网）
+  const ENGINE_KEY = 'qr-engine';
+  const ENGINES = ['offline'];   // 纯静态只能浏览器内编码
+  let engine = 'offline';
+
   function buildQrUrl(text, size) {
-    return ToQR.dataUrl(text, size);       // data:image/png
+    if (engine === 'offline' && window.ToQR) {
+      try { return window.ToQR.dataUrl(text, size); }
+      catch (e) { /* 编码失败就退回本机 */ }
+    }
+    if (engine === 'caoliao') {
+      return '/api/qr-remote?data=' + encodeURIComponent(text) + '&size=' + size + 'x' + size;
+    }
+    return QR_BASE + '?data=' + encodeURIComponent(text) + '&size=' + size + 'x' + size;
   }
 
   /* ============ 链接识别：平台表 ============ */
@@ -1109,7 +823,6 @@ var ToQR = (function () {
   const toastEl   = $('toast');
   const inputHint = $('inputHint');
   const linkHint  = $('linkHint');
-  const modeSwitch = $('modeSwitch');
   const lightbox  = $('lightbox');
   const lbImg     = $('lbImg');
   const lbTitle   = $('lbTitle');
@@ -1131,7 +844,7 @@ var ToQR = (function () {
   let importState = null;  // 最近一次导入的文件信息
   let toastTimer = null;
   let lbIndex = 0;         // 灯箱当前展示的序号
-  let mode = 'smart';      // smart＝只出链接；raw＝按行原样
+  let mode = ROOT === 'shop' ? 'smart' : 'raw';   // shop＝只出链接；qr＝按行原样
 
   /* ============ 工具函数 ============ */
   function toast(msg, ms) {
@@ -1167,16 +880,10 @@ var ToQR = (function () {
     return { items: parseRawLines(), meta: null, fromLinks: false };
   }
 
-  /* ============ 识别模式与即时提示 ============ */
-  const MODE_KEY = 'qr-input-mode';
-
-  function setMode(next) {
-    mode = next === 'raw' ? 'raw' : 'smart';
-    Array.prototype.forEach.call(modeSwitch.querySelectorAll('button'), (b) => {
-      b.setAttribute('aria-selected', String(b.dataset.mode === mode));
-    });
-    try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
-    updateLinkHint();
+  /* ============ 顶栏入口高亮与即时提示 ============ */
+  function markActiveTab() {
+    const el = $(ROOT === 'shop' ? 'tabShop' : 'tabQr');
+    if (el) el.setAttribute('aria-current', 'page');
   }
 
   function updateLinkHint() {
@@ -1283,7 +990,7 @@ var ToQR = (function () {
           '</svg>' +
         '</button>' +
         '<img alt="二维码：' + escapeHtml(text) + '" src="' + url + '" data-i="' + i + '" title="点击放大">' +
-        '<div class="fail">二维码生成失败<br>内容可能过长</div>' +
+        '<div class="fail">二维码生成失败<br>内容可能过长，或服务未启动</div>' +
         cap;
 
       const img = item.querySelector('img');
@@ -1334,9 +1041,19 @@ var ToQR = (function () {
   }
 
   /* ============ 下载 ============ */
-  // 图片是本机生成的 data URL，直接转成 blob 即可，不存在跨域问题
+  // 二维码是同源接口返回的，直接取 blob 即可，不存在跨域问题。
   async function fetchQrBlob(text) {
-    const res = await fetch(buildQrUrl(text, QR_SIZE));
+    const url = buildQrUrl(text, QR_SIZE);
+    // 离线解析器给的是 data URL，而 CSP 的 connect-src 只放行 'self'，
+    // fetch(data:) 会被拦，所以这里手动解 base64。
+    if (url.slice(0, 5) === 'data:') {
+      const bin = atob(url.slice(url.indexOf(',') + 1));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: 'image/png' });
+    }
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     return await res.blob();
   }
 
@@ -1362,23 +1079,9 @@ var ToQR = (function () {
     }
   }
 
-  async function handleDownloadAll() {
-    const fallback = currentItems.length ? { items: currentItems, meta: currentMeta } : resolveItems();
-    const items = fallback.items;
-    if (!items.length) {
-      toast('还没有可下载的二维码，请先生成');
-      return;
-    }
-    if (currentItems.length === 0) renderPreview(items, fallback.meta);
-
-    const btn = $('btnDownloadAll');
-    const original = btn.innerHTML;
-    btn.disabled = true;
-    btn.textContent = '打包中…';
-
-  /* ============ 打包下载：页面自带的极简 zip 写入器 ============ */
-  // 以前依赖 CDN 上的 JSZip，离线时打包就废了。二维码 PNG 本身已压缩，
-  // 再套 deflate 收益很小，所以只做「存储」方式的 zip：零依赖、离线可用。
+  /* ============ 打包下载：自带的极简 zip 写入器 ============ */
+  // 之前用 CDN 上的 JSZip，机器离线时整个打包功能就废了。二维码 PNG 本身已压缩，
+  // 再套 deflate 收益很小，所以这里只做「存储」方式的 zip：几十行、零依赖、离线可用。
   const CRC_TABLE = (function () {
     const table = new Uint32Array(256);
     for (let i = 0; i < 256; i++) {
@@ -1413,10 +1116,10 @@ var ToQR = (function () {
       const crc = crc32(bytes);
 
       const lh = new DataView(new ArrayBuffer(30));
-      lh.setUint32(0, 0x04034b50, true);
-      lh.setUint16(4, 20, true);
-      lh.setUint16(6, 0x0800, true);
-      lh.setUint16(8, 0, true);
+      lh.setUint32(0, 0x04034b50, true);      // 本地文件头签名
+      lh.setUint16(4, 20, true);              // 解压所需版本
+      lh.setUint16(6, 0x0800, true);          // 文件名使用 UTF-8
+      lh.setUint16(8, 0, true);               // 存储方式：不压缩
       lh.setUint16(10, dosTime, true);
       lh.setUint16(12, dosDate, true);
       lh.setUint32(14, crc, true);
@@ -1427,7 +1130,7 @@ var ToQR = (function () {
       body.push(new Uint8Array(lh.buffer), name, bytes);
 
       const cd = new DataView(new ArrayBuffer(46));
-      cd.setUint32(0, 0x02014b50, true);
+      cd.setUint32(0, 0x02014b50, true);      // 中央目录项签名
       cd.setUint16(4, 20, true);
       cd.setUint16(6, 20, true);
       cd.setUint16(8, 0x0800, true);
@@ -1446,7 +1149,7 @@ var ToQR = (function () {
 
     const centralSize = central.reduce((n, part) => n + part.length, 0);
     const eocd = new DataView(new ArrayBuffer(22));
-    eocd.setUint32(0, 0x06054b50, true);
+    eocd.setUint32(0, 0x06054b50, true);      // 中央目录结束标记
     eocd.setUint16(8, files.length, true);
     eocd.setUint16(10, files.length, true);
     eocd.setUint32(12, centralSize, true);
@@ -1456,8 +1159,24 @@ var ToQR = (function () {
                     { type: 'application/zip' });
   }
 
+  async function handleDownloadAll() {
+    const fallback = currentItems.length ? { items: currentItems, meta: currentMeta } : resolveItems();
+    const items = fallback.items;
+    if (!items.length) {
+      toast('还没有可下载的二维码，请先生成');
+      return;
+    }
+    if (currentItems.length === 0) renderPreview(items, fallback.meta);
+
+    const btn = $('btnDownloadAll');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = '打包中…';
+
     try {
       const files = [];
+      let firstFail = null;
+
       for (let i = 0; i < items.length; i++) {
         btn.textContent = '下载中 ' + (i + 1) + '/' + items.length;
         try {
@@ -1465,12 +1184,14 @@ var ToQR = (function () {
           files.push({ name: safeFileName(items[i], i),
                        bytes: new Uint8Array(await blob.arrayBuffer()) });
         } catch (e) {
+          if (!firstFail) firstFail = items[i];
           console.warn('第 ' + (i + 1) + ' 个二维码下载失败', e);
         }
       }
 
       if (!files.length) {
-        toast('二维码生成失败，请检查内容长度后重试', 3600);
+        if (firstFail) window.open(buildQrUrl(firstFail, QR_SIZE), '_blank', 'noopener');
+        toast('二维码生成失败，已在新窗口打开图片，右键另存即可', 4600);
         return;
       }
 
@@ -1841,19 +1562,8 @@ var ToQR = (function () {
 
   /* ============ 事件绑定 ============ */
   $('btnGen').addEventListener('click', () => handleGenerate(false));
-  $('btnExtract').addEventListener('click', () => {
-    setMode('smart');
-    handleGenerate(true);
-  });
+  $('btnExtract').addEventListener('click', () => handleGenerate(true));
   $('btnDownloadAll').addEventListener('click', handleDownloadAll);
-
-  // 识别方式切换：切完清空预览，避免看到上一轮的残留结果
-  modeSwitch.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-mode]');
-    if (!btn || btn.dataset.mode === mode) return;
-    setMode(btn.dataset.mode);
-    renderPreview([], null);
-  });
 
   // 边输入边提示识别到几个链接（防抖，避免每敲一个字就扫全文）
   let hintTimer = null;
@@ -1876,6 +1586,7 @@ var ToQR = (function () {
   // 下载模板：按钮展开格式菜单（CSV / TXT）
   const tplMenu = $('tplMenu');
   const btnTemplate = $('btnTemplate');
+  const engineSelect = $('engineSelect') || document.createElement('select');
 
   function closeTplMenu() {
     tplMenu.hidden = true;
@@ -2023,6 +1734,22 @@ var ToQR = (function () {
   lbCopy.addEventListener('click', () => copyText(currentItems[lbIndex]));
   lbWeb.addEventListener('click', () => openInWeb(currentItems[lbIndex]));
 
+  // 切换解析器：重新渲染当前条目，让用户立刻看到新引擎的效果
+  engineSelect.addEventListener('change', () => {
+    const next = engineSelect.value;
+    if (ENGINES.indexOf(next) === -1 || next === engine) return;
+    engine = next;
+    try { localStorage.setItem(ENGINE_KEY, engine); } catch (e) {}
+    renderPreview(currentItems.slice(), currentMeta);
+    if (engine === 'offline') {
+      toast('已切换到备用解析器 1：在浏览器内生成，不经过服务端', 2800);
+    } else if (engine === 'caoliao') {
+      toast('已切换到备用解析器 2：走草料开放平台，需要服务端能上外网', 3200);
+    } else {
+      toast('已切回默认解析器：本机编码', 2200);
+    }
+  });
+
   // Ctrl/Cmd + Enter 快捷生成
   inputEl.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -2033,10 +1760,13 @@ var ToQR = (function () {
 
   /* ============ 初始化 ============ */
   try {
-    const saved = localStorage.getItem(MODE_KEY);
-    if (saved === 'raw' || saved === 'smart') mode = saved;
+    const savedEngine = localStorage.getItem(ENGINE_KEY);
+    if (ENGINES.indexOf(savedEngine) !== -1) engine = savedEngine;
   } catch (e) {}
-  setMode(mode);
+  engineSelect.value = engine;
+
+  markActiveTab();
+  updateLinkHint();
   renderHistory();
   renderPreview([]);
 })();

@@ -9,3 +9,12 @@ var/
 dist/
 build/
 *.spec
+
+# 构建产物：fpk 打包时由 build-fpk.sh 从 ui/ 复制生成
+fnos-qrcode/fpk/app/ui/index.html
+fnos-qrcode/fpk/app/ui/qrscan.html
+fnos-qrcode/fpk/app/ui/vendor/
+
+# 安装包只进 GitHub Release，不入库
+fnos-qrcode/*.fpk
+fnos-qrcode/*.fpk.zip

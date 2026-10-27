@@ -4,8 +4,6 @@
 
 纯 Python 标准库实现，**零第三方依赖**，无构建步骤。默认**完全离线**：二维码在服务端本地编码，页面不引用任何外部资源；也可以按需切换成「浏览器内离线编码」或「草料开放平台」解析器。
 
-![首页](docs/screenshots/01-home.png)
-
 ## 部署方式
 
 五种方式任选其一，装完浏览器打开 `http://<主机>:<端口>/` 即可使用。
@@ -103,15 +101,61 @@ chmod +x ./toqr-<版本>-<平台>
 > macOS 首次运行如被 Gatekeeper 拦截：`xattr -d com.apple.quarantine toqr-*` 后再执行。
 > 二进制提供 Windows / Linux 与 Apple Silicon（arm64）版；Intel Mac 可用 Docker 镜像或源码运行。
 
-### 5. 飞牛 fnOS
+### 5. 飞牛 fnOS（应用包 / 纯静态）
 
-| 形态 | 位置 | 用法 |
-| --- | --- | --- |
-| 应用包（fpk） | `fnos-qrcode/fnos-qrcode_<版本>.fpk` | 应用中心「手动安装」选这个文件；升级需先在应用中心卸载旧版 |
-| 纯静态（nginx） | `fnos-qrcode/nginx/` + `fnos-qrcode/html/` | 挂到已有 Web 服务或反代后面 |
-| 单文件静态页 | `fnos-index/index.html` | 丢到任意 Web 目录即可，二维码在浏览器内生成 |
+**5a. 应用包（fpk，推荐）**
 
-应用包自带 Python 服务与 `/qrscan` 扫码页；纯静态形态没有后端，扫码页不可用（且仍需 HTTPS 才能调摄像头）。
+应用包自带 Python 服务，桌面出现图标，三条入口与扫码页都可用：
+
+1. 从 [Releases](../../releases) 下载 `fnos-qrcode_<版本>.fpk`；
+2. 应用中心 →「手动安装」→ 选该文件；
+3. 升级时需先在应用中心卸载旧版，再装新包（`appcenter-cli` 没有升级通道）。
+
+自己打包源码：
+
+```bash
+bash fnos-qrcode/fpk/build-fpk.sh        # 产物 fnos-qrcode/fnos-qrcode_<版本>.fpk
+```
+
+构建脚本会先把 `ui/` 里的页面和解码库复制进 `fnos-qrcode/fpk/app/ui/`，再按 `fnos-qrcode/fpk/manifest` 里的版本号打包。
+
+**5b. 纯静态（nginx，无后端）**
+
+没有 Python 也能用：页面在浏览器内完成编码与解码。先由源码生成静态副本，再用 nginx 托管：
+
+```bash
+python3 fnos-qrcode/tools/sync-static.py   # 从 ui/ 生成 html/fnos-qrcode/ 下的静态页
+```
+
+生成 / 用到的文件：
+
+| 文件 | 用途 |
+| --- | --- |
+| `fnos-qrcode/index.html` | 单页版页面（放站点根目录时用） |
+| `fnos-qrcode/html/fnos-qrcode/` | nginx 托管的整站目录：`index.html`、`qrscan.html`、`vendor/` |
+| `fnos-qrcode/nginx/default.conf` | nginx 站点配置：同时支持根路径与 `/fnos-qrcode/` 子路径 |
+| `fnos-qrcode/nginx/reverse-proxy.conf` | 给已有反代（下级域名）用的片段 |
+| `fnos-qrcode/docker-compose.yml` | 用 nginx:alpine 起一个静态站（默认 8090 端口） |
+
+```bash
+cd fnos-qrcode
+docker compose up -d        # 起静态站，访问 http://<NAS-IP>:8090/fnos-qrcode/
+```
+
+或者直接挂到已有 nginx：
+
+```bash
+cp -r fnos-qrcode/html/fnos-qrcode /usr/share/nginx/html/
+cp fnos-qrcode/nginx/default.conf /etc/nginx/conf.d/fnos-qrcode.conf
+nginx -s reload
+```
+
+静态版的差异：
+- 二维码在**浏览器内**生成（不经过服务端），没有「默认 / 草料」两档解析器，只剩离线编码；
+- `/qrscan` 仍然可用（页面内解码，依赖同目录的 `vendor/zxing.min.js`），但**必须 HTTPS** 才能调摄像头；
+- 没有登录、设置页、历史记录服务端能力（历史记录存在浏览器 localStorage）。
+
+更细的静态部署说明（域名反代、子路径、端口冲突）见 [`fnos-qrcode/README.md`](fnos-qrcode/README.md)。
 
 ### 端口与配置
 
@@ -142,8 +186,6 @@ python server/app.py --check                # 探测端口是否在监听
 | 解析器可选 | 输入区右上可切换：默认（本机编码）/ 备用1（浏览器离线编码）/ 备用2（草料开放平台 API，服务端转发） |
 | 用户认证 | 可选登录（PBKDF2 + HMAC Cookie），多账号、设备数限制、失败锁定、IP 黑白名单 |
 | 历史记录 | 最近 50 条本地保存，缩略图回看、点击回填 |
-
-![链接识别](docs/screenshots/06-links.png)
 
 ## 三个入口（文根）
 
@@ -176,21 +218,33 @@ python server/app.py --check                # 探测端口是否在监听
 ## 目录结构
 
 ```
-├── server/app.py          # 服务端（Python 标准库，单文件）
-├── ui/                    # 前端静态资源（无构建步骤）
-│   ├── index.html         # 出码页（/、/qr、/qr-shop 共用，行为由地址决定）
-│   ├── qrscan.html        # 扫码识别页（/qrscan）
-│   ├── vendor/            # toqr-qr.js（浏览器内离线编码）、zxing.min.js（扫码解码）
-│   └── images/            # 图标
-├── fnos-qrcode/           # 飞牛 fnOS 形态：fpk/ 应用包、nginx/ + html/ 静态部署、安装包
-├── fnos-index/            # 单文件静态页（无后端）
-├── docs/screenshots/      # 截图
-├── DEPLOY.md              # fpk 构建说明
-├── Dockerfile
-├── docker-compose.yml
-├── CHANGELOG.md
-└── .github/workflows/release.yml   # 打 tag 自动构建三平台二进制 + Docker 镜像并发 Release
+ToQR/
+├── server/
+│   └── app.py                 # 服务端：静态托管 + 路由 + 登录 + 本地二维码编码（纯标准库，单文件）
+├── ui/
+│   ├── index.html             # 出码页：/、/qr、/qr-shop 共用，行为由地址决定
+│   ├── qrscan.html            # 扫码识别页：/qrscan
+│   ├── vendor/
+│   │   ├── toqr-qr.js         # 浏览器内 QR 编码器（「备用1 · 离线」解析器 + 静态版用）
+│   │   └── zxing.min.js       # 条码解码库（扫码页在没有原生 BarcodeDetector 时用）
+│   └── images/                # 站点图标
+├── fnos-qrcode/               # 飞牛 fnOS 部署形态
+│   ├── fpk/                   # 原生应用包源码（manifest / cmd / wizard / app / tools）
+│   ├── index.html             # 单页静态版（sync-static.py 生成，勿手改）
+│   ├── html/fnos-qrcode/      # nginx 整站目录（index.html / qrscan.html / vendor）
+│   ├── nginx/                 # nginx 站点配置（根路径 + 子路径）与反代片段
+│   ├── tools/sync-static.py   # 从 ui/ 生成上面的静态副本
+│   ├── docker-compose.yml     # 用 nginx:alpine 起静态站
+│   └── README.md              # 静态部署详细说明
+├── Dockerfile                 # 通用镜像：python:3.12-slim + server/ + ui/
+├── docker-compose.yml         # 通用镜像的 compose（8080 + toqr-data 卷）
+├── DEPLOY.md                  # fpk 构建过程与源码清单
+├── CHANGELOG.md               # 版本更新日志
+├── README.md                  # 本文件
+└── .github/workflows/         # 打 tag 自动构建三平台二进制 + Docker 镜像并发 Release
 ```
+
+构建产物不入库（见 `.gitignore`）：`fnos-qrcode/*.fpk`、`fnos-qrcode/fpk/app/ui/{index,qrscan}.html` 与 `vendor/` 都由脚本生成，安装包只发在 [Releases](../../releases)。
 
 ## 更新日志
 
@@ -200,5 +254,5 @@ python server/app.py --check                # 探测端口是否在监听
 
 - **默认完全离线**：二维码由服务端按 QR Code Model 2 规范在本地编码成 PNG，不请求任何外部接口；页面也不引用任何 CDN 资源，NAS 不通外网同样可用，内容不出本机
 - **解析器可切换**：输入区右上方可选「默认（本机编码）」/「备用1（浏览器内离线编码）」/「备用2（草料开放平台 API，服务端同源转发）」；只有显式选备用2 才会出外网
-- 飞牛 fnOS 形态在 [`fnos-qrcode/`](fnos-qrcode/) 目录：`fpk/` 打应用包（`bash fnos-qrcode/fpk/build-fpk.sh`），`nginx/` + `html/` 是纯静态部署；另有 [`fnos-index/`](fnos-index/) 单文件静态版
+- 飞牛 fnOS 形态在 [`fnos-qrcode/`](fnos-qrcode/) 目录：`fpk/` 打应用包（`bash fnos-qrcode/fpk/build-fpk.sh`），`nginx/` + `html/` 是纯静态部署（页面由 `tools/sync-static.py` 从 `ui/` 生成）
 - 服务端只有 `server/app.py` 一个文件；fpk 版另有一份副本 `fnos-qrcode/fpk/app/server/app.py`，改服务端逻辑时两处都要同步
