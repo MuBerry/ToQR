@@ -1,0 +1,16 @@
+{
+  ".url": {
+    "fnos-qrcode.Application": {
+      "title": "二维码批量生成器",
+      "icon": "images/icon_{0}.png",
+      "type": "url",
+      "protocol": "http",
+      "port": "${wizard_port}",
+      "url": "/",
+      "allUsers": false,
+      "control": {
+        "accessPerm": "readonly"
+      }
+    }
+  }
+}

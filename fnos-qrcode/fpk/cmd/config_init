@@ -1,0 +1,5 @@
+#!/bin/bash
+# 配置向导调起前：无需准备动作，保持幂等
+set -uo pipefail
+echo "fnos-qrcode[config_init] ok"
+exit 0

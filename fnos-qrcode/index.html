@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>二维码批量生成器 - 简单高效的二维码生成工具</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4.5' fill='%231f2937'/%3E%3Crect x='4.2' y='4.2' width='6.2' height='6.2' rx='1' fill='%23ffffff'/%3E%3Crect x='13.6' y='4.2' width='6.2' height='6.2' rx='1' fill='%233b82f6'/%3E%3Crect x='4.2' y='13.6' width='6.2' height='6.2' rx='1' fill='%233b82f6'/%3E%3Crect x='13.6' y='13.6' width='6.2' height='6.2' rx='1' fill='%23ffffff'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg-page:#f9fafb;
+    --card-bg:#ffffff;
+    --card-border:#eef0f2;
+    --line:#f0f0f0;
+    --text-1:#1f2937;
+    --text-2:#374151;
+    --text-3:#4b5563;
+    --text-4:#6b7280;
+    --text-5:#9ca3af;
+    --text-6:#c3c8d0;
+    --input-border:#d1d5db;
+    --blue:#3b82f6;
+    --blue-dark:#2563eb;
+    --green:#10b981;
+    --green-dark:#059669;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none !important}
+  html,body{height:100%}
+  body{
+    background:var(--bg-page);
+    color:var(--text-1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    font-size:14px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* ---------------- 顶栏 ---------------- */
+  .topbar{
+    background:#fff;
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:20;
+  }
+  .topbar-inner{
+    height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  }
+  .brand{display:flex;align-items:center;gap:10px;min-width:0}
+  .brand h1{
+    font-size:18px;font-weight:700;color:var(--text-1);letter-spacing:.2px;white-space:nowrap;
+  }
+  .brand-sub{font-size:13px;color:var(--text-4);white-space:nowrap}
+  .topbar-right{display:flex;align-items:center;gap:14px;min-width:0}
+
+  /* 顶栏「使用说明」按钮 */
+  .help-btn{
+    flex:none;display:inline-flex;align-items:center;gap:6px;
+    height:32px;padding:0 12px;border-radius:8px;cursor:pointer;
+    background:#f3f6fa;border:1px solid #e3e8ef;color:var(--text-2);
+    font-family:inherit;font-size:13px;font-weight:500;
+    -webkit-tap-highlight-color:transparent;
+    transition:background-color .15s,border-color .15s,color .15s;
+  }
+  .help-btn svg{flex:none;color:var(--blue)}
+  .help-btn:hover{background:#e9eff7;border-color:#cdd7e3;color:var(--text-1)}
+  .help-btn:active{transform:translateY(1px)}
+  .help-btn:focus-visible{outline:2px solid rgba(59,130,246,.45);outline-offset:2px}
+
+  /* ---------------- 卡片 ---------------- */
+  main{padding:24px 0 40px}
+  .card{
+    background:var(--card-bg);
+    border:1px solid var(--card-border);
+    border-radius:var(--radius);
+    box-shadow:0 1px 2px rgba(16,24,40,.03);
+  }
+  .card + .card{margin-top:20px}
+
+  .panel-head{display:flex;align-items:center;gap:8px}
+  .panel-head h2{font-size:15px;font-weight:700;color:var(--text-1)}
+  .panel-head .icon{flex:none;display:block}
+
+  /* ---------------- 使用说明弹窗 ---------------- */
+  body.modal-open{overflow:hidden}
+  .modal{
+    position:fixed;inset:0;z-index:70;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    background:rgba(17,24,39,.5);backdrop-filter:blur(2px);
+    overscroll-behavior:contain;
+    animation:modalIn .16s ease-out;
+  }
+  @keyframes modalIn{from{opacity:0}to{opacity:1}}
+  .modal-card{
+    width:100%;max-width:560px;
+    max-height:min(86vh,720px);
+    display:flex;flex-direction:column;overflow:hidden;
+    background:#fff;border-radius:14px;
+    box-shadow:0 24px 60px rgba(16,24,40,.28);
+    animation:cardIn .18s ease-out;
+  }
+  @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .modal-card:focus{outline:none}
+  .modal-head{
+    flex:none;display:flex;align-items:center;gap:10px;
+    padding:15px 18px 12px;border-bottom:1px solid var(--line);
+  }
+  .modal-head h2{font-size:15px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:7px}
+  .modal-close{
+    margin-left:auto;flex:none;width:30px;height:30px;
+    display:flex;align-items:center;justify-content:center;
+    border:none;border-radius:8px;cursor:pointer;
+    background:#f1f3f5;color:var(--text-3);font-size:17px;line-height:1;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .modal-close:hover{background:#e5e8eb;color:var(--text-1)}
+  .modal-close:focus-visible{outline:2px solid rgba(59,130,246,.45);outline-offset:2px}
+  .modal-body{
+    padding:15px 18px 20px;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+  .modal-body p{font-size:13.5px;color:var(--text-3);line-height:1.75}
+  .modal-body p + p{margin-top:8px}
+  .tips{
+    list-style:none;display:flex;flex-direction:column;gap:9px;margin-top:14px;
+  }
+  .tips li{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text-3);line-height:1.6}
+  .tips svg{flex:none;margin-top:3px}
+
+  /* ---------------- 双栏 ---------------- */
+  .grid{display:grid;grid-template-columns:1.1fr 1.4fr;gap:20px}
+  .grid .card{margin-top:0}
+
+  .panel-input{padding:20px 22px 22px;display:flex;flex-direction:column}
+  .hint-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:8px 0 10px}
+  .hint{font-size:12.5px;color:var(--text-4)}
+  .mini-btn{
+    display:inline-flex;align-items:center;gap:4px;flex:none;
+    font-size:12px;font-family:inherit;color:var(--blue);
+    background:#eff6ff;border:1px solid #dbeafe;border-radius:5px;
+    padding:3px 8px;cursor:pointer;white-space:nowrap;
+    transition:background-color .15s,border-color .15s;
+  }
+  .mini-btn:hover{background:#dbeafe;border-color:#bfdbfe}
+  .mini-btn[aria-expanded="true"]{background:#dbeafe;border-color:#bfdbfe}
+  .mini-btn svg{flex:none}
+  .mini-btn .caret{transition:transform .15s}
+  .mini-btn[aria-expanded="true"] .caret{transform:rotate(180deg)}
+
+  /* 模板格式选择菜单 */
+  .tpl-wrap{position:relative;flex:none}
+  .tpl-menu{
+    position:absolute;right:0;top:calc(100% + 6px);z-index:30;
+    min-width:186px;padding:4px;
+    background:#fff;border:1px solid #e8ebef;border-radius:8px;
+    box-shadow:0 8px 24px rgba(16,24,40,.12);
+    display:flex;flex-direction:column;gap:2px;
+  }
+  .tpl-menu button{
+    display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+    width:100%;text-align:left;border:none;background:none;cursor:pointer;
+    padding:7px 9px;border-radius:6px;font-family:inherit;
+    font-size:12.5px;color:var(--text-2);transition:background-color .12s,color .12s;
+  }
+  .tpl-menu button:hover{background:#f1f6ff;color:var(--blue-dark)}
+  .tpl-menu button .d{font-size:11px;color:var(--text-5)}
+  .tpl-menu button:hover .d{color:#7ba7e8}
+
+  textarea{
+    width:100%;flex:1 1 auto;min-height:230px;resize:vertical;
+    border:1px solid var(--input-border);border-radius:6px;
+    padding:10px 12px;font-size:13.5px;line-height:1.7;color:var(--text-2);
+    font-family:inherit;outline:none;background:#fff;transition:border-color .15s,box-shadow .15s;
+  }
+  textarea::placeholder{color:var(--text-5)}
+  textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  textarea.dragover{
+    border-color:var(--blue);border-style:dashed;background:#f5f9ff;
+    box-shadow:0 0 0 3px rgba(59,130,246,.12);
+  }
+
+  /* 文件导入信息条 */
+  .import-bar{
+    display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;
+    margin-top:10px;padding:7px 10px;border-radius:6px;
+    background:#f8fafc;border:1px solid #eef0f2;font-size:12.5px;color:var(--text-4);
+  }
+  .import-bar .fname{
+    display:inline-flex;align-items:center;gap:5px;color:var(--text-3);font-weight:500;
+    max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .import-bar .fname svg{flex:none}
+  .import-bar select{
+    height:26px;border:1px solid var(--input-border);border-radius:5px;background:#fff;
+    font-size:12.5px;font-family:inherit;color:var(--text-2);padding:0 4px;max-width:130px;
+    outline:none;cursor:pointer;
+  }
+  .import-bar select:focus{border-color:var(--blue)}
+  .import-bar label{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+  .import-bar input[type=checkbox]{accent-color:var(--blue);cursor:pointer;margin:0}
+  .import-bar .x{
+    margin-left:auto;border:none;background:none;cursor:pointer;color:var(--text-5);
+    font-size:16px;line-height:1;padding:2px 4px;border-radius:4px;
+  }
+  .import-bar .x:hover{color:var(--text-2);background:#eef1f4}
+
+  .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .actions .btn{padding:0 11px;font-size:13px}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;
+    height:36px;padding:0 16px;border-radius:6px;border:1px solid transparent;
+    font-size:13.5px;font-family:inherit;font-weight:500;cursor:pointer;
+    transition:background-color .15s,border-color .15s,opacity .15s,transform .05s;
+    white-space:nowrap;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn svg{flex:none}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover:not(:disabled){background:var(--blue-dark)}
+  .btn-ghost{background:#fff;color:var(--text-2);border-color:var(--input-border)}
+  .btn-ghost:hover:not(:disabled){background:#f9fafb;border-color:#9ca3af}
+  .btn-success{background:var(--green);color:#fff}
+  .btn-success:hover:not(:disabled){background:var(--green-dark)}
+
+  /* ---------------- 预览 ---------------- */
+  .panel-preview{padding:20px 22px 22px;display:flex;flex-direction:column;min-height:340px}
+  .panel-preview .count{margin-left:auto;font-size:12.5px;color:var(--text-4)}
+
+  .preview-body{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 0 4px}
+  .empty{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:24px 0}
+  .empty p{font-size:13px;color:var(--text-5)}
+  .empty small{font-size:12px;color:var(--text-6)}
+
+  .qr-grid{
+    width:100%;align-self:flex-start;align-content:start;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
+    gap:12px;max-height:520px;overflow:auto;padding:2px;
+  }
+  .qr-item{
+    position:relative;border:1px solid #eceef1;border-radius:8px;background:#fff;
+    padding:10px 8px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  .qr-item:hover{border-color:#c7d2fe;box-shadow:0 2px 8px rgba(16,24,40,.07)}
+  .qr-item img{width:100%;max-width:120px;aspect-ratio:1/1;display:block;background:#fff;border-radius:4px}
+  .qr-item .txt{
+    width:100%;font-size:11.5px;color:var(--text-4);text-align:center;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .qr-item .idx{
+    position:absolute;top:6px;left:8px;font-size:10.5px;color:#b6bcc6;
+  }
+  .qr-item .dl{
+    position:absolute;top:5px;right:5px;width:24px;height:24px;border-radius:5px;
+    display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;
+    background:rgba(59,130,246,.92);color:#fff;opacity:0;transition:opacity .15s;
+  }
+  .qr-item:hover .dl{opacity:1}
+  .qr-item .dl:hover{background:var(--blue-dark)}
+  .qr-item.failed img{display:none}
+  .qr-item .fail{
+    width:100%;max-width:120px;aspect-ratio:1/1;display:none;
+    align-items:center;justify-content:center;background:#fef2f2;border-radius:4px;
+    font-size:11.5px;color:#dc2626;text-align:center;padding:6px;
+  }
+  .qr-item.failed .fail{display:flex}
+
+  /* ---------------- 链接识别（模式切换 / 平台标签 / 放大） ---------------- */
+  .hint-tools{display:flex;align-items:center;gap:8px;flex:none}
+  .mode-switch{display:inline-flex;align-items:center;gap:2px;padding:2px;background:#f1f3f5;border-radius:7px;flex:none}
+  .mode-switch button{
+    border:none;background:transparent;font-family:inherit;font-size:12px;color:var(--text-4);
+    padding:3px 9px;border-radius:5px;cursor:pointer;white-space:nowrap;
+    transition:background-color .12s,color .12s;
+  }
+  .mode-switch button:hover{color:var(--text-2)}
+  .mode-switch button[aria-selected="true"]{
+    background:#fff;color:var(--blue-dark);font-weight:600;
+    box-shadow:0 1px 2px rgba(16,24,40,.1);
+  }
+  .link-hint{
+    margin:-2px 0 10px;font-size:12px;color:var(--text-4);line-height:1.7;
+  }
+  .link-hint b{color:var(--blue-dark);font-weight:600}
+
+  .qr-item img{cursor:zoom-in}
+  .qr-item .cap{width:100%;display:flex;align-items:center;justify-content:center;gap:5px;min-width:0}
+  .plat{flex:none;font-size:10px;line-height:1.6;padding:0 4px;border-radius:3px;color:#fff;letter-spacing:.2px}
+  .plat.light{color:#7a4b00}
+  .qr-item .cap a{
+    font-size:11.5px;color:var(--text-3);text-decoration:none;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .qr-item .cap a:hover{color:var(--blue-dark);text-decoration:underline}
+
+  .lightbox{
+    position:fixed;inset:0;z-index:60;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    background:rgba(17,24,39,.66);backdrop-filter:blur(2px);
+    animation:lbIn .16s ease-out;
+  }
+  @keyframes lbIn{from{opacity:0}to{opacity:1}}
+  .lb-card{
+    width:100%;max-width:380px;background:#fff;border-radius:14px;
+    padding:14px 16px 16px;box-shadow:0 24px 60px rgba(0,0,0,.32);text-align:center;
+  }
+  .lb-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .lb-title{font-size:13px;color:var(--text-4)}
+  .lb-close{
+    flex:none;width:26px;height:26px;border:none;border-radius:7px;cursor:pointer;
+    background:#f1f3f5;color:var(--text-3);font-size:16px;line-height:1;
+  }
+  .lb-close:hover{background:#e5e8eb;color:var(--text-1)}
+  .lb-card img{width:100%;max-width:320px;aspect-ratio:1/1;display:block;margin:0 auto;border-radius:8px;background:#fff}
+  .lb-meta{margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:5px}
+  .lb-link{
+    display:inline-flex;align-items:center;gap:6px;max-width:100%;
+    font-size:13px;color:var(--blue-dark);text-decoration:none;word-break:break-all;padding:2px;
+  }
+  .lb-link:hover{text-decoration:underline}
+  .lb-tip{font-size:11.5px;color:var(--text-5);line-height:1.6}
+  .lb-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+  .lb-actions .btn{height:32px;padding:0 12px;font-size:12.5px}
+
+  .preview-skeleton{font-size:13px;color:var(--text-4)}
+
+  /* ---------------- 最近生成 ---------------- */
+  .panel-history{padding:20px 22px 22px}
+  .panel-history .panel-head .clear{
+    margin-left:auto;border:none;background:none;color:var(--text-5);
+    font-size:12.5px;font-family:inherit;cursor:pointer;padding:2px 4px;
+  }
+  .panel-history .panel-head .clear:hover{color:var(--blue)}
+  .history-empty{text-align:center;font-size:13px;color:var(--text-5);padding:34px 0 26px}
+
+  .history-list{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:4px}
+  .history-list li{
+    display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:6px;
+    cursor:pointer;transition:background .12s;
+  }
+  .history-list li:hover{background:#f8fafc}
+  .history-list img{
+    width:40px;height:40px;flex:none;border:1px solid #eef0f2;border-radius:6px;background:#fff;
+  }
+  .history-main{min-width:0;flex:1}
+  .history-main .t{font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .history-main .m{font-size:12px;color:var(--text-5);margin-top:1px}
+  .history-list .go{
+    font-size:12.5px;color:var(--blue);opacity:0;flex:none;transition:opacity .12s;
+  }
+  .history-list li:hover .go{opacity:1}
+
+  footer{
+    text-align:center;font-size:12px;color:var(--text-5);padding:0 24px 32px;line-height:1.9;
+  }
+  footer a{color:var(--text-4);text-decoration:none}
+  footer a:hover{color:var(--blue)}
+
+  .toast{
+    position:fixed;left:50%;bottom:34px;transform:translate(-50%,14px);
+    background:rgba(31,41,55,.94);color:#fff;font-size:13px;
+    padding:9px 16px;border-radius:6px;opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;z-index:60;max-width:80vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:860px){
+    .grid{grid-template-columns:1fr}
+    .brand-sub{display:none}
+    .topbar-inner{height:56px}
+    .help-btn{height:34px;padding:0 11px;font-size:12.5px;border-radius:17px}
+  }
+  /* 手机上使用说明改为底部抽屉，避免小屏弹窗被键盘/工具栏挤压 */
+  @media (max-width:560px){
+    .container{padding:0 16px}
+    .modal{align-items:flex-end;padding:0}
+    .modal-card{
+      max-width:none;max-height:88vh;border-radius:16px 16px 0 0;
+      animation:sheetIn .2s ease-out;
+    }
+    .modal-card::before{
+      content:"";flex:none;align-self:center;width:36px;height:4px;margin:8px 0 2px;
+      border-radius:2px;background:#e2e6eb;
+    }
+    .modal-head{padding:8px 16px 10px}
+    .modal-body{padding:14px 16px calc(20px + env(safe-area-inset-bottom))}
+    .modal-body p{font-size:13.5px}
+    .tips li{font-size:12.8px}
+    .help-btn{height:32px;padding:0 10px;gap:5px;font-size:12.5px;white-space:nowrap}
+  }
+  @keyframes sheetIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="container topbar-inner">
+    <div class="brand">
+      <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2.5" y="2.5" width="8" height="8" rx="1.4" fill="#1f2937"/>
+        <rect x="4.8" y="4.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="13.5" y="2.5" width="8" height="8" rx="1.4" fill="#3b82f6"/>
+        <rect x="15.8" y="4.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="2.5" y="13.5" width="8" height="8" rx="1.4" fill="#3b82f6"/>
+        <rect x="4.8" y="15.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="13.5" y="13.5" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="18.1" y="13.5" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="13.5" y="18.1" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="18.1" y="18.1" width="3.4" height="3.4" rx=".6" fill="#3b82f6"/>
+      </svg>
+      <h1>二维码批量生成器</h1>
+    </div>
+    <div class="topbar-right">
+      <div class="brand-sub">简单高效的二维码生成工具</div>
+      <button type="button" class="help-btn" id="btnHelp"
+              aria-haspopup="dialog" aria-controls="helpModal" aria-expanded="false"
+              title="查看使用说明">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/>
+          <path d="M9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.1 1-1.1 1.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="16.9" r="1.15" fill="currentColor"/>
+        </svg>
+        <span>使用说明</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- 输入 + 预览 -->
+  <div class="grid">
+    <section class="card panel-input">
+      <div class="panel-head">
+        <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3z" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M14.5 6.5l3 3" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>
+        <h2>输入内容</h2>
+      </div>
+      <div class="hint-row">
+        <p class="hint" id="inputHint">每行一个内容，将生成对应二维码</p>
+        <div class="hint-tools">
+          <div class="mode-switch" id="modeSwitch" role="tablist" aria-label="识别方式">
+            <button type="button" role="tab" data-mode="smart" aria-selected="true"
+                    title="从文本中识别链接，只生成链接的二维码">智能识别</button>
+            <button type="button" role="tab" data-mode="raw" aria-selected="false"
+                    title="按行生成，内容原样编进二维码">按行原样</button>
+          </div>
+          <div class="tpl-wrap">
+            <button type="button" class="mini-btn" id="btnTemplate" aria-haspopup="menu" aria-expanded="false" title="下载导入模板（CSV / TXT）">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3.5v11m0 0l-3.6-3.6M12 14.5l3.6-3.6M5 17.5v1.6c0 .7.6 1.4 1.4 1.4h11.2c.8 0 1.4-.7 1.4-1.4v-1.6"
+                      stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              下载模板
+              <svg class="caret" width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M6 9.5l6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <div class="tpl-menu" id="tplMenu" role="menu" hidden>
+              <button type="button" role="menuitem" data-tpl="csv">
+                <span>CSV 模板</span>
+                <span class="d">含表头，可用 Excel 编辑</span>
+              </button>
+              <button type="button" role="menuitem" data-tpl="txt">
+                <span>TXT 模板</span>
+                <span class="d">纯文本，一行一条</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="link-hint" id="linkHint" hidden></div>
+      <textarea id="input" spellcheck="false" placeholder="每行一个内容，例如：&#10;https://example.com&#10;Python二维码生成&#10;测试内容123&#10;多行文本示例"></textarea>
+      <div class="import-bar" id="importBar" hidden>
+        <span class="fname" id="importName">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M14 3H7a1.6 1.6 0 0 0-1.6 1.6v14.8A1.6 1.6 0 0 0 7 21h10a1.6 1.6 0 0 0 1.6-1.6V7.6L14 3z"
+                  stroke="#6b7280" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M13.8 3.2v4.6h4.6" stroke="#6b7280" stroke-width="1.7" stroke-linejoin="round"/>
+          </svg>
+          <span id="importNameText"></span>
+        </span>
+        <span id="colLabel">使用列</span>
+        <select id="colSelect"></select>
+        <label id="headerWrap"><input type="checkbox" id="headerSkip">忽略首行</label>
+        <button class="x" id="importClose" type="button" title="关闭导入信息">×</button>
+      </div>
+      <input type="file" id="fileInput" accept=".txt,.text,.csv,.tsv,text/plain,text/csv" hidden>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="btnGen">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 3l13 8-5.5 1.2L9.5 18 5 3z" fill="#fff"/>
+          </svg>
+          生成二维码
+        </button>
+        <button class="btn btn-ghost" id="btnExtract" title="从文本中提取所有链接，只生成这些链接的二维码">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M10.2 13.8a3.4 3.4 0 0 0 4.8 0l3-3a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"
+                  stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M13.8 10.2a3.4 3.4 0 0 0-4.8 0l-3 3a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"
+                  stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          提取链接
+        </button>
+        <button class="btn btn-ghost" id="btnUpload">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 16.5v-11m0 0L8 9.5m4-4l4 4M4.5 16v2.1c0 .8.6 1.4 1.4 1.4h12.2c.8 0 1.4-.6 1.4-1.4V16"
+                  stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          上传文件
+        </button>
+        <button class="btn btn-ghost" id="btnClear">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 7h16M9.5 7V5.4c0-.5.4-.9.9-.9h3.2c.5 0 .9.4.9.9V7M6.6 7l.9 12.1c0 .5.4.9.9.9h7.2c.5 0 .9-.4.9-.9L17.4 7" stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          清空输入
+        </button>
+        <button class="btn btn-success" id="btnDownloadAll">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3.5v11m0 0l-4-4m4 4l4-4M4.5 17.5v1.6c0 .8.6 1.4 1.4 1.4h12.2c.8 0 1.4-.6 1.4-1.4v-1.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          下载全部
+        </button>
+      </div>
+    </section>
+
+    <section class="card panel-preview">
+      <div class="panel-head">
+        <h2>二维码预览</h2>
+        <span class="count" id="previewCount"></span>
+      </div>
+      <div class="preview-body" id="previewBody">
+        <div class="empty">
+          <svg width="66" height="66" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="1.3" fill="#d7dbe0"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.3" fill="#e4e7eb"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.3" fill="#e4e7eb"/>
+            <rect x="14" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>
+            <rect x="18" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>
+            <rect x="14" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>
+            <rect x="18" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>
+          </svg>
+          <p>生成的二维码将显示在这里</p>
+          <small>点击“生成二维码”按钮开始</small>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 最近生成 -->
+  <section class="card panel-history">
+    <div class="panel-head">
+      <svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M3.8 12a8.2 8.2 0 1 0 2.6-6" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round"/>
+        <path d="M3.6 4.6v3.6h3.6" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 7.6V12l3 1.9" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2>最近生成</h2>
+      <button class="clear" id="btnClearHistory" hidden>清空记录</button>
+    </div>
+    <div id="historyBody">
+      <div class="history-empty">暂无生成记录</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  二维码由页面内置编码器在本机生成，不联网、不上传 · 内容只留在你自己的设备上
+</footer>
+
+<!-- 使用说明弹窗 -->
+<div class="modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="modal-card" tabindex="-1">
+    <div class="modal-head">
+      <h2 id="helpTitle">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="#3b82f6" stroke-width="1.9"/>
+          <path d="M9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.1 1-1.1 1.8" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="16.9" r="1.15" fill="#3b82f6"/>
+        </svg>
+        使用说明
+      </h2>
+      <button type="button" class="modal-close" id="helpClose" aria-label="关闭使用说明">×</button>
+    </div>
+    <div class="modal-body">
+      <p>在文本框中输入内容，每一行一个条目，系统将为每个条目生成对应的二维码。生成后可直接预览并保存需要的二维码。</p>
+      <p>直接把购物 App 的分享文案整段粘进来也行：会自动识别其中的链接（京东、淘宝、天猫、拼多多、抖音等），只给链接生成二维码，文案里的其他字会被忽略。</p>
+      <ul class="tips">
+        <li>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="#10b981"/>
+            <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          粘贴分享文案，只提取其中的链接
+        </li>
+        <li>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="#10b981"/>
+            <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          点二维码可放大，手机上点下方文字唤起 App
+        </li>
+        <li>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="#10b981"/>
+            <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          实时预览生成结果
+        </li>
+        <li>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="#10b981"/>
+            <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          单个或批量下载、支持 txt / csv 导入
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-labelledby="lbTitle">
+  <div class="lb-card">
+    <div class="lb-head">
+      <span class="lb-title" id="lbTitle">二维码</span>
+      <button class="lb-close" id="lbClose" type="button" title="关闭（Esc）" aria-label="关闭">×</button>
+    </div>
+    <img id="lbImg" alt="二维码大图">
+    <div class="lb-meta">
+      <a class="lb-link" id="lbLink" href="#" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M10.2 13.8a3.4 3.4 0 0 0 4.8 0l3-3a3.4 3.4 0 0 0-4.8-4.8l-1.4 1.4"
+                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M13.8 10.2a3.4 3.4 0 0 0-4.8 0l-3 3a3.4 3.4 0 0 0 4.8 4.8l1.4-1.4"
+                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="lbLinkText"></span>
+      </a>
+      <span class="lb-tip" id="lbTip"></span>
+    </div>
+    <div class="lb-actions">
+      <button class="btn btn-primary" id="lbDownload" type="button">下载这张</button>
+      <button class="btn btn-ghost" id="lbCopy" type="button">复制链接</button>
+      <button class="btn btn-ghost" id="lbWeb" type="button">用浏览器打开</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ToQR 内置二维码编码器 —— QR Code Model 2，字节模式（UTF-8），纠错等级 M
+ * 纯前端：不联网、不依赖任何第三方库。用法：ToQR.dataUrl(text, 400) -> data:image/png
+ */
+var ToQR = (function () {
+  'use strict';
+
+  // 版本 → [每块纠错码字, 组1块数, 组1数据码字, 组2块数, 组2数据码字]
+  var BLOCKS_M = [
+    [10, 1, 16, 0, 0], [16, 1, 28, 0, 0], [26, 1, 44, 0, 0], [18, 2, 32, 0, 0],
+    [24, 2, 43, 0, 0], [16, 4, 27, 0, 0], [18, 4, 31, 0, 0], [22, 2, 38, 2, 39],
+    [22, 3, 36, 2, 37], [26, 4, 43, 1, 44], [30, 1, 50, 4, 51], [22, 6, 36, 2, 37],
+    [22, 8, 37, 1, 38], [24, 4, 40, 5, 41], [24, 5, 41, 5, 42], [28, 7, 45, 3, 46],
+    [28, 10, 46, 1, 47], [26, 9, 43, 4, 44], [26, 3, 44, 11, 45], [26, 3, 41, 13, 42],
+    [26, 17, 42, 0, 0], [28, 17, 46, 0, 0], [28, 4, 47, 14, 48], [28, 6, 45, 14, 46],
+    [28, 8, 47, 13, 48], [28, 19, 46, 4, 47], [28, 22, 45, 3, 46], [28, 3, 45, 23, 46],
+    [28, 21, 45, 7, 46], [28, 19, 47, 10, 48], [28, 2, 46, 29, 47], [28, 10, 46, 23, 47],
+    [28, 14, 46, 21, 47], [28, 14, 46, 23, 47], [28, 12, 47, 26, 48], [28, 6, 47, 34, 48],
+    [28, 29, 46, 14, 47], [28, 13, 46, 32, 47], [28, 40, 47, 7, 48], [28, 18, 47, 31, 48]
+  ];
+  var MAX_VERSION = 40;
+  var QUIET = 4;
+
+  var EXP = new Uint8Array(512);
+  var LOG = new Uint8Array(256);
+  (function () {
+    var x = 1, i;
+    for (i = 0; i < 255; i++) {
+      EXP[i] = x;
+      LOG[x] = i;
+      x <<= 1;
+      if (x & 0x100) x ^= 0x11D;
+    }
+    for (i = 255; i < 512; i++) EXP[i] = EXP[i - 255];
+  })();
+
+  function gfMul(a, b) {
+    return (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
+  }
+
+  function dataCodewords(version) {
+    var b = BLOCKS_M[version - 1];
+    return b[1] * b[2] + b[3] * b[4];
+  }
+
+  function eccFor(data, eccLen) {
+    var gen = [1], i, j;
+    for (i = 0; i < eccLen; i++) {
+      var next = new Array(gen.length + 1);
+      for (j = 0; j < next.length; j++) next[j] = 0;
+      for (j = 0; j < gen.length; j++) {
+        next[j] ^= gen[j];
+        next[j + 1] ^= gfMul(gen[j], EXP[i]);
+      }
+      gen = next;
+    }
+    var res = data.slice();
+    for (i = 0; i < eccLen; i++) res.push(0);
+    for (i = 0; i < data.length; i++) {
+      var coef = res[i];
+      if (coef) {
+        for (j = 0; j < gen.length; j++) res[i + j] ^= gfMul(gen[j], coef);
+      }
+    }
+    return res.slice(data.length);
+  }
+
+  function alignmentPositions(version) {
+    if (version === 1) return [];
+    var size = version * 4 + 17;
+    var count = Math.floor(version / 7) + 2;
+    var step = version === 32 ? 26
+      : Math.floor((version * 4 + count * 2 + 1) / (count * 2 - 2)) * 2;
+    var pos = [6];
+    for (var i = count - 2; i >= 0; i--) pos.push(size - 7 - i * step);
+    return pos;
+  }
+
+  function encodeCodewords(bytes, version) {
+    var capBits = dataCodewords(version) * 8;
+    var ccBits = version < 10 ? 8 : 16;
+    var out = [], buf = 0, buflen = 0;
+
+    function put(val, len) {
+      for (var i = len - 1; i >= 0; i--) {
+        buf = (buf << 1) | ((val >> i) & 1);
+        buflen++;
+        if (buflen === 8) { out.push(buf & 0xFF); buf = 0; buflen = 0; }
+      }
+    }
+
+    put(0b0100, 4);
+    put(bytes.length, ccBits);
+    for (var i = 0; i < bytes.length; i++) put(bytes[i], 8);
+
+    var used = 4 + ccBits + 8 * bytes.length;
+    put(0, Math.min(4, capBits - used));
+    if (buflen > 0) put(0, 8 - buflen);
+
+    var pad = [0xEC, 0x11], k = 0;
+    while (out.length < capBits / 8) { out.push(pad[k & 1]); k++; }
+
+    var b = BLOCKS_M[version - 1];
+    var eccLen = b[0], blocks = [], pos = 0, n;
+    for (n = 0; n < b[1]; n++) { blocks.push(out.slice(pos, pos + b[2])); pos += b[2]; }
+    for (n = 0; n < b[3]; n++) { blocks.push(out.slice(pos, pos + b[4])); pos += b[4]; }
+
+    var eccs = blocks.map(function (blk) { return eccFor(blk, eccLen); });
+    var merged = [], longest = 0, m;
+    for (m = 0; m < blocks.length; m++) longest = Math.max(longest, blocks[m].length);
+    for (i = 0; i < longest; i++) {
+      for (m = 0; m < blocks.length; m++) {
+        if (i < blocks[m].length) merged.push(blocks[m][i]);
+      }
+    }
+    for (i = 0; i < eccLen; i++) {
+      for (m = 0; m < eccs.length; m++) merged.push(eccs[m][i]);
+    }
+    return merged;
+  }
+
+  function drawFormat(mod, func, mask) {
+    var size = mod.length;
+    var data = mask;            // 纠错等级 M 的两位是 00
+    var rem = data, i;
+    for (i = 0; i < 10; i++) rem = (rem << 1) ^ (((rem >> 9) & 1) * 0x537);
+    var bits = ((data << 10) | rem) ^ 0x5412;
+
+    function put(r, c, bit) {
+      mod[r][c] = (bits >> bit) & 1;
+      func[r][c] = 1;
+    }
+    for (i = 0; i <= 5; i++) put(i, 8, i);
+    put(7, 8, 6);
+    put(8, 8, 7);
+    put(8, 7, 8);
+    for (i = 9; i < 15; i++) put(8, 14 - i, i);
+    for (i = 0; i < 8; i++) put(8, size - 1 - i, i);
+    for (i = 8; i < 15; i++) put(size - 15 + i, 8, i);
+    put(size - 8, 8, 0);
+    mod[size - 8][8] = 1;
+  }
+
+  function buildMatrix(version, codewords) {
+    var size = version * 4 + 17, r, c, i, j, dr, dc;
+    var mod = [], func = [];
+    for (r = 0; r < size; r++) {
+      mod.push(new Uint8Array(size));
+      func.push(new Uint8Array(size));
+    }
+    function put(rr, cc, dark) {
+      mod[rr][cc] = dark ? 1 : 0;
+      func[rr][cc] = 1;
+    }
+
+    var corners = [[0, 0], [0, size - 7], [size - 7, 0]];
+    for (i = 0; i < corners.length; i++) {
+      var br = corners[i][0], bc = corners[i][1];
+      for (dr = -1; dr <= 7; dr++) {
+        for (dc = -1; dc <= 7; dc++) {
+          r = br + dr; c = bc + dc;
+          if (r < 0 || r >= size || c < 0 || c >= size) continue;
+          var inside = dr >= 0 && dr <= 6 && dc >= 0 && dc <= 6;
+          var dark = inside && (dr === 0 || dr === 6 || dc === 0 || dc === 6
+            || (dr >= 2 && dr <= 4 && dc >= 2 && dc <= 4));
+          put(r, c, dark);
+        }
+      }
+    }
+
+    for (i = 8; i < size - 8; i++) {
+      put(6, i, i % 2 === 0);
+      put(i, 6, i % 2 === 0);
+    }
+
+    var pos = alignmentPositions(version);
+    var last = pos.length ? pos[pos.length - 1] : -99;
+    for (i = 0; i < pos.length; i++) {
+      for (j = 0; j < pos.length; j++) {
+        r = pos[i]; c = pos[j];
+        if ((r === 6 && c === 6) || (r === 6 && c === last) || (r === last && c === 6)) continue;
+        for (dr = -2; dr <= 2; dr++) {
+          for (dc = -2; dc <= 2; dc++) {
+            put(r + dr, c + dc, Math.max(Math.abs(dr), Math.abs(dc)) !== 1);
+          }
+        }
+      }
+    }
+
+    drawFormat(mod, func, 0);
+
+    if (version >= 7) {
+      var rem = version;
+      for (i = 0; i < 12; i++) rem = (rem << 1) ^ (((rem >> 11) & 1) * 0x1F25);
+      var vbits = (version << 12) | rem;
+      for (i = 0; i < 18; i++) {
+        var bit = (vbits >> i) & 1;
+        var a = size - 11 + i % 3, b2 = Math.floor(i / 3);
+        put(b2, a, bit);
+        put(a, b2, bit);
+      }
+    }
+
+    var idx = 0, totalBits = codewords.length * 8, right = size - 1;
+    while (right >= 1) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < size; vert++) {
+        for (j = 0; j < 2; j++) {
+          c = right - j;
+          var upward = ((right + 1) & 2) === 0;
+          r = upward ? size - 1 - vert : vert;
+          if (!func[r][c] && idx < totalBits) {
+            mod[r][c] = (codewords[idx >> 3] >> (7 - (idx & 7))) & 1;
+            idx++;
+          }
+        }
+      }
+      right -= 2;
+    }
+    return { mod: mod, func: func };
+  }
+
+  function applyMask(mod, func, mask) {
+    var size = mod.length, r, c, invert;
+    for (r = 0; r < size; r++) {
+      for (c = 0; c < size; c++) {
+        if (func[r][c]) continue;
+        if (mask === 0) invert = (r + c) % 2 === 0;
+        else if (mask === 1) invert = r % 2 === 0;
+        else if (mask === 2) invert = c % 3 === 0;
+        else if (mask === 3) invert = (r + c) % 3 === 0;
+        else if (mask === 4) invert = (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0;
+        else if (mask === 5) invert = (r * c) % 2 + (r * c) % 3 === 0;
+        else if (mask === 6) invert = ((r * c) % 2 + (r * c) % 3) % 2 === 0;
+        else invert = ((r + c) % 2 + (r * c) % 3) % 2 === 0;
+        if (invert) mod[r][c] ^= 1;
+      }
+    }
+  }
+
+  function penalty(mod) {
+    var size = mod.length, score = 0, r, c, i, run, line;
+
+    function scanLine(get) {
+      var s = 0;
+      run = 1;
+      for (var k = 1; k < size; k++) {
+        if (get(k) === get(k - 1)) run++;
+        else { if (run >= 5) s += 3 + (run - 5); run = 1; }
+      }
+      if (run >= 5) s += 3 + (run - 5);
+      return s;
+    }
+
+    for (r = 0; r < size; r++) score += scanLine(function (k) { return mod[r][k]; });
+    for (c = 0; c < size; c++) score += scanLine(function (k) { return mod[k][c]; });
+
+    for (r = 0; r < size - 1; r++) {
+      for (c = 0; c < size - 1; c++) {
+        var v = mod[r][c];
+        if (v === mod[r][c + 1] && v === mod[r + 1][c] && v === mod[r + 1][c + 1]) score += 3;
+      }
+    }
+
+    var pa = [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0];
+    var pb = [0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1];
+    function findPattern(get) {
+      var s = 0;
+      for (var k = 0; k + 11 <= size; k++) {
+        var okA = true, okB = true;
+        for (var t = 0; t < 11; t++) {
+          var val = get(k + t);
+          if (val !== pa[t]) okA = false;
+          if (val !== pb[t]) okB = false;
+          if (!okA && !okB) break;
+        }
+        if (okA || okB) s += 40;
+      }
+      return s;
+    }
+    for (r = 0; r < size; r++) score += findPattern(function (k) { return mod[r][k]; });
+    for (c = 0; c < size; c++) score += findPattern(function (k) { return mod[k][c]; });
+
+    var dark = 0;
+    for (r = 0; r < size; r++) for (c = 0; c < size; c++) dark += mod[r][c];
+    var total = size * size;
+    score += Math.floor(Math.abs(dark * 20 - total * 10) / total) * 10;
+    return score;
+  }
+
+  function modules(text) {
+    var bytes = new TextEncoder().encode(String(text));
+    var version = 0, v, ccBits;
+    for (v = 1; v <= MAX_VERSION; v++) {
+      ccBits = v < 10 ? 8 : 16;
+      if (4 + ccBits + 8 * bytes.length <= dataCodewords(v) * 8) { version = v; break; }
+    }
+    if (!version) throw new Error('内容过长');
+
+    var cw = encodeCodewords(bytes, version);
+    var built = buildMatrix(version, cw);
+    var best = null, bestScore = Infinity;
+    for (var mask = 0; mask < 8; mask++) {
+      var trial = built.mod.map(function (row) { return new Uint8Array(row); });
+      applyMask(trial, built.func, mask);
+      drawFormat(trial, built.func, mask);
+      var s = penalty(trial);
+      if (s < bestScore) { bestScore = s; best = trial; }
+    }
+    return best;
+  }
+
+  function dataUrl(text, size) {
+    var mod = modules(text);
+    var count = mod.length + QUIET * 2;
+    var scale = Math.max(1, Math.floor((size || 400) / count));
+    var edge = count * scale;
+    var canvas = document.createElement('canvas');
+    canvas.width = edge;
+    canvas.height = edge;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, edge, edge);
+    ctx.fillStyle = '#000';
+    for (var r = 0; r < mod.length; r++) {
+      for (var c = 0; c < mod.length; c++) {
+        if (mod[r][c]) {
+          ctx.fillRect((QUIET + c) * scale, (QUIET + r) * scale, scale, scale);
+        }
+      }
+    }
+    return canvas.toDataURL('image/png');
+  }
+
+  return { modules: modules, dataUrl: dataUrl };
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+
+  /* ============ 二维码：页面内置编码器生成，离线可用 ============ */
+  // 纯静态部署，没有后端：直接在本机按 QR Code Model 2 编码成 data URL，
+  // 不请求任何第三方接口，浏览器不需要外网，内容不出本机。
+  const QR_SIZE = 400;          // 生成尺寸（像素）
+  const QR_SIZE_BIG = 800;      // 放大查看时用的尺寸，高分屏不糊
+  const MAX_ITEMS = 200;        // 单次最多生成数量
+  const HISTORY_KEY = 'qr-batch-history-v1';
+  const HISTORY_LIMIT = 8;
+
+  function buildQrUrl(text, size) {
+    return ToQR.dataUrl(text, size);       // data:image/png
+  }
+
+  /* ============ 链接识别：平台表 ============ */
+  // hosts 里是域名后缀，匹配 host 本身或它的子域（u.jd.com 命中 jd.com）
+  const PLATFORMS = [
+    { key: 'jd',       name: '京东',   color: '#e1251b', hosts: ['jd.com', 'jd.hk', '3.cn'] },
+    { key: 'taobao',   name: '淘宝',   color: '#ff5000', hosts: ['taobao.com', 'tb.cn'] },
+    { key: 'tmall',    name: '天猫',   color: '#ff0036', hosts: ['tmall.com', 'tmall.hk'] },
+    { key: 'pdd',      name: '拼多多', color: '#e02e24', hosts: ['yangkeduo.com', 'pinduoduo.com', 'pdd.cn'] },
+    { key: 'douyin',   name: '抖音',   color: '#161823', hosts: ['douyin.com', 'iesdouyin.com', 'amemv.com'] },
+    { key: 'xhs',      name: '小红书', color: '#ff2442', hosts: ['xiaohongshu.com', 'xhslink.com'] },
+    { key: 'kuaishou', name: '快手',   color: '#ff4906', hosts: ['kuaishou.com', 'gifshow.com'] },
+    { key: 'ali1688',  name: '1688',   color: '#ff6a00', hosts: ['1688.com'] },
+    { key: 'wechat',   name: '微信',   color: '#07c160', hosts: ['weixin.qq.com', 'weixin.com'] },
+    { key: 'weibo',    name: '微博',   color: '#e6162d', hosts: ['weibo.com', 'weibo.cn', 't.cn'] },
+    { key: 'bili',     name: 'B站',    color: '#fb7299', hosts: ['bilibili.com', 'b23.tv'] },
+    { key: 'meituan',  name: '美团',   color: '#ffb400', hosts: ['meituan.com', 'meituan.net', 'dianping.com'], light: true },
+    { key: 'eleme',    name: '饿了么', color: '#0095ff', hosts: ['ele.me', 'eleme.cn'] },
+    { key: 'suning',   name: '苏宁',   color: '#ffaa00', hosts: ['suning.com'], light: true },
+    { key: 'zhihu',    name: '知乎',   color: '#0084ff', hosts: ['zhihu.com'] }
+  ];
+  const PLATFORM_OTHER = { key: 'other', name: '链接', color: '#6b7280', hosts: [] };
+
+  // 带协议的链接：碰到中文、中文标点、全角字符就停（URL 里不会出现这些）
+  const URL_RE = /https?:\/\/[^\s<>"'`\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]+/gi;
+  // 没写协议的短链：只认这些平台域名，免得把正文里的普通英文当成链接
+  const BARE_RE = /(?:^|[^\w.\/-])((?:[a-z0-9-]+\.)*(?:3\.cn|jd\.com|tb\.cn|taobao\.com|tmall\.com|yangkeduo\.com|pinduoduo\.com|douyin\.com|xhslink\.com|xiaohongshu\.com|b23\.tv|kuaishou\.com|1688\.com)\/[^\s<>"'`\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]+)/gi;
+  const HAS_LINK_RE = /https?:\/\/|(?:jd\.com|3\.cn|tb\.cn|taobao\.com|tmall\.com|yangkeduo\.com|pinduoduo\.com|douyin\.com|xhslink\.com|b23\.tv)\//i;
+
+  // 去掉链接结尾顺带粘上的标点
+  function trimUrl(raw) {
+    return String(raw).replace(/[.,;:!?'"`)\]}>]+$/, '');
+  }
+
+  function platformOf(url) {
+    let host = '';
+    try { host = new URL(url).hostname.toLowerCase(); } catch (e) { return PLATFORM_OTHER; }
+    host = host.replace(/^www\./, '');
+    for (let i = 0; i < PLATFORMS.length; i++) {
+      const p = PLATFORMS[i];
+      for (let j = 0; j < p.hosts.length; j++) {
+        const h = p.hosts[j];
+        if (host === h || host.slice(-(h.length + 1)) === '.' + h) return p;
+      }
+    }
+    return PLATFORM_OTHER;
+  }
+
+  // 从任意文本里挖出链接：先抓带协议的，再补上没写协议的平台短链
+  function extractLinks(text) {
+    const hits = [];
+    let m;
+
+    URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(text)) !== null) {
+      hits.push({ start: m.index, end: m.index + m[0].length, url: m[0] });
+      if (!m[0].length) URL_RE.lastIndex++;
+    }
+
+    BARE_RE.lastIndex = 0;
+    while ((m = BARE_RE.exec(text)) !== null) {
+      const start = m.index + (m[0].length - m[1].length);
+      const end = m.index + m[0].length;
+      let covered = false;
+      for (let i = 0; i < hits.length; i++) {
+        if (start >= hits[i].start && start < hits[i].end) { covered = true; break; }
+      }
+      if (!covered) hits.push({ start: start, end: end, url: m[1] });
+      if (!m[0].length) BARE_RE.lastIndex++;
+    }
+
+    hits.sort((a, b) => a.start - b.start);
+
+    const out = [];
+    const seen = Object.create(null);
+    for (let i = 0; i < hits.length; i++) {
+      let url = trimUrl(hits[i].url);
+      if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+      // 至少要有主机名和点，避免把 "https://" 这种半截内容当成链接
+      if (!/^https?:\/\/[^\s\/]+\.[^\s\/]{2,}/i.test(url)) continue;
+      if (seen[url]) continue;    // 分享文案里同一条链接经常出现两次
+      seen[url] = 1;
+      out.push({ url: url, platform: platformOf(url), start: hits[i].start });
+    }
+    return out;
+  }
+
+  // 平台名 + 短链，用于卡片和灯箱下方的文字
+  function shortUrl(url, max) {
+    const s = String(url).replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+    const n = max || 30;
+    return s.length > n ? s.slice(0, n) + '…' : s;
+  }
+
+  /* ============ DOM ============ */
+  const $ = (id) => document.getElementById(id);
+  const inputEl   = $('input');
+  const previewBody = $('previewBody');
+  const previewCount = $('previewCount');
+  const historyBody = $('historyBody');
+  const btnClearHistory = $('btnClearHistory');
+  const toastEl   = $('toast');
+  const inputHint = $('inputHint');
+  const linkHint  = $('linkHint');
+  const modeSwitch = $('modeSwitch');
+  const lightbox  = $('lightbox');
+  const lbImg     = $('lbImg');
+  const lbTitle   = $('lbTitle');
+  const lbLink    = $('lbLink');
+  const lbLinkText = $('lbLinkText');
+  const lbTip     = $('lbTip');
+  const lbCopy    = $('lbCopy');
+  const lbWeb     = $('lbWeb');
+  const fileInput = $('fileInput');
+  const importBar = $('importBar');
+  const importNameText = $('importNameText');
+  const colLabel  = $('colLabel');
+  const colSelect = $('colSelect');
+  const headerWrap = $('headerWrap');
+  const headerSkip = $('headerSkip');
+
+  let currentItems = [];   // 当前预览的条目
+  let currentMeta = null;  // 与 currentItems 对应的平台信息（智能识别时才有）
+  let importState = null;  // 最近一次导入的文件信息
+  let toastTimer = null;
+  let lbIndex = 0;         // 灯箱当前展示的序号
+  let mode = 'smart';      // smart＝只出链接；raw＝按行原样
+
+  /* ============ 工具函数 ============ */
+  function toast(msg, ms) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 2200);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function parseRawLines(text) {
+    const out = [];
+    String(text == null ? inputEl.value : text).split(/\r?\n/).forEach((line) => {
+      const t = line.trim();
+      if (t) out.push(t);   // 跳过空行，重复内容按不同条目分别生成
+    });
+    return out;
+  }
+
+  // 统一的取数逻辑：智能识别优先只取链接，识别不到就退回按行
+  function resolveItems() {
+    if (mode === 'smart') {
+      const links = extractLinks(inputEl.value);
+      if (links.length) {
+        return { items: links.map((l) => l.url), meta: links, fromLinks: true };
+      }
+    }
+    return { items: parseRawLines(), meta: null, fromLinks: false };
+  }
+
+  /* ============ 识别模式与即时提示 ============ */
+  const MODE_KEY = 'qr-input-mode';
+
+  function setMode(next) {
+    mode = next === 'raw' ? 'raw' : 'smart';
+    Array.prototype.forEach.call(modeSwitch.querySelectorAll('button'), (b) => {
+      b.setAttribute('aria-selected', String(b.dataset.mode === mode));
+    });
+    try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+    updateLinkHint();
+  }
+
+  function updateLinkHint() {
+    if (mode === 'raw') {
+      linkHint.hidden = true;
+      inputHint.textContent = '每行一个内容，将生成对应二维码';
+      return;
+    }
+
+    inputHint.textContent = '粘贴分享文案即可，只提取里面的链接';
+    const text = inputEl.value;
+    if (!text.trim()) { linkHint.hidden = true; return; }
+
+    const links = extractLinks(text);
+    if (!links.length) {
+      linkHint.hidden = false;
+      linkHint.textContent = '未识别到链接，将按行原样生成';
+      return;
+    }
+
+    const names = [];
+    links.forEach((l) => { if (names.indexOf(l.platform.name) === -1) names.push(l.platform.name); });
+
+    let noLink = 0;
+    parseRawLines().forEach((line) => { if (!HAS_LINK_RE.test(line)) noLink++; });
+
+    linkHint.hidden = false;
+    linkHint.innerHTML =
+      '已识别到 <b>' + links.length + '</b> 个链接' +
+      (names.length
+        ? '（' + escapeHtml(names.slice(0, 4).join(' / ')) + (names.length > 4 ? ' 等' : '') + '）'
+        : '') +
+      '，将只生成这些链接的二维码' +
+      (noLink ? '；另有 ' + noLink + ' 行不含链接会被忽略' : '');
+  }
+
+  function safeFileName(text, idx) {
+    let s = String(text).replace(/^https?:\/\//i, '').replace(/[\\/:*?"<>|\s]+/g, '_');
+    s = s.replace(/^_+|_+$/g, '').slice(0, 40) || 'qrcode';
+    return String(idx + 1).padStart(2, '0') + '_' + s + '.png';
+  }
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /* ============ 生成 ============ */
+  function renderPreview(items, meta) {
+    currentItems = items;
+    currentMeta = meta || null;
+
+    if (!items.length) {
+      previewCount.textContent = '';
+      previewBody.innerHTML =
+        '<div class="empty">' +
+          '<svg width="66" height="66" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+            '<rect x="3" y="3" width="7" height="7" rx="1.3" fill="#d7dbe0"/>' +
+            '<rect x="14" y="3" width="7" height="7" rx="1.3" fill="#e4e7eb"/>' +
+            '<rect x="3" y="14" width="7" height="7" rx="1.3" fill="#e4e7eb"/>' +
+            '<rect x="14" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>' +
+            '<rect x="18" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>' +
+            '<rect x="14" y="18" width="3" height="3" rx=".8" fill="#e4e7eb"/>' +
+            '<rect x="18" y="14" width="3" height="3" rx=".8" fill="#d7dbe0"/>' +
+          '</svg>' +
+          '<p>生成的二维码将显示在这里</p>' +
+          '<small>点击“生成二维码”按钮开始</small>' +
+        '</div>';
+      return;
+    }
+
+    previewCount.textContent = '共 ' + items.length + ' 个';
+    const frag = document.createDocumentFragment();
+    const grid = document.createElement('div');
+    grid.className = 'qr-grid';
+
+    items.forEach((text, i) => {
+      const url = buildQrUrl(text, QR_SIZE);
+      const info = meta && meta[i] ? meta[i] : null;
+
+      let cap;
+      if (info) {
+        cap = '<div class="cap">' +
+                '<span class="plat' + (info.platform.light ? ' light' : '') +
+                  '" style="background:' + info.platform.color + '">' +
+                  escapeHtml(info.platform.name) + '</span>' +
+                '<a href="' + escapeHtml(info.url) + '" target="_blank" rel="noopener"' +
+                  ' data-i="' + i + '" title="' + escapeHtml(info.url) + '">' +
+                  escapeHtml(shortUrl(info.url)) + '</a>' +
+              '</div>';
+      } else {
+        cap = '<div class="txt" title="' + escapeHtml(text) + '">' + escapeHtml(text) + '</div>';
+      }
+
+      const item = document.createElement('div');
+      item.className = 'qr-item';
+      item.innerHTML =
+        '<span class="idx">#' + (i + 1) + '</span>' +
+        '<button class="dl" title="下载这张二维码" data-i="' + i + '">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none">' +
+            '<path d="M12 4v10m0 0l-3.6-3.6M12 14l3.6-3.6M5 18.5h14" stroke="#fff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>' +
+          '</svg>' +
+        '</button>' +
+        '<img alt="二维码：' + escapeHtml(text) + '" src="' + url + '" data-i="' + i + '" title="点击放大">' +
+        '<div class="fail">二维码生成失败<br>内容可能过长</div>' +
+        cap;
+
+      const img = item.querySelector('img');
+      img.addEventListener('error', () => item.classList.add('failed'));
+
+      grid.appendChild(item);
+    });
+
+    frag.appendChild(grid);
+    previewBody.innerHTML = '';
+    previewBody.appendChild(frag);
+  }
+
+  function handleGenerate(forceLinks) {
+    if (!inputEl.value.trim()) {
+      toast('请先在文本框中输入内容');
+      inputEl.focus();
+      return;
+    }
+
+    let items = null;
+    let meta = null;
+
+    if (forceLinks === true || mode === 'smart') {
+      const links = extractLinks(inputEl.value);
+      if (links.length) {
+        items = links.map((l) => l.url);
+        meta = links;
+      } else if (forceLinks === true) {
+        toast('没有识别到链接，请确认文本里有 http(s):// 开头的网址', 3400);
+        return;
+      } else {
+        toast('没有识别到链接，已按行原样生成', 2600);
+      }
+    }
+
+    if (!items) items = parseRawLines();
+    if (!items.length) { toast('没有可生成的内容'); return; }
+
+    if (items.length > MAX_ITEMS) {
+      items = items.slice(0, MAX_ITEMS);
+      if (meta) meta = meta.slice(0, MAX_ITEMS);
+      toast('单次最多生成 ' + MAX_ITEMS + ' 个，已截取前 ' + MAX_ITEMS + ' 条', 3200);
+    }
+
+    renderPreview(items, meta);
+    saveHistory(items);
+  }
+
+  /* ============ 下载 ============ */
+  // 图片是本机生成的 data URL，直接转成 blob 即可，不存在跨域问题
+  async function fetchQrBlob(text) {
+    const res = await fetch(buildQrUrl(text, QR_SIZE));
+    return await res.blob();
+  }
+
+  function saveBlob(blob, filename) {
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+  }
+
+  async function downloadOne(text, idx) {
+    try {
+      const blob = await fetchQrBlob(text);
+      saveBlob(blob, safeFileName(text, idx));
+    } catch (e) {
+      // 兜底：新窗口打开图片，用户可右键另存
+      window.open(buildQrUrl(text, QR_SIZE), '_blank', 'noopener');
+      throw e;
+    }
+  }
+
+  async function handleDownloadAll() {
+    const fallback = currentItems.length ? { items: currentItems, meta: currentMeta } : resolveItems();
+    const items = fallback.items;
+    if (!items.length) {
+      toast('还没有可下载的二维码，请先生成');
+      return;
+    }
+    if (currentItems.length === 0) renderPreview(items, fallback.meta);
+
+    const btn = $('btnDownloadAll');
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = '打包中…';
+
+  /* ============ 打包下载：页面自带的极简 zip 写入器 ============ */
+  // 以前依赖 CDN 上的 JSZip，离线时打包就废了。二维码 PNG 本身已压缩，
+  // 再套 deflate 收益很小，所以只做「存储」方式的 zip：零依赖、离线可用。
+  const CRC_TABLE = (function () {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[i] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function makeZip(files) {
+    const enc = new TextEncoder();
+    const now = new Date();
+    const dosTime = ((now.getHours() & 0x1F) << 11) | ((now.getMinutes() & 0x3F) << 5)
+                  | ((now.getSeconds() / 2) & 0x1F);
+    const dosDate = (((now.getFullYear() - 1980) & 0x7F) << 9)
+                  | (((now.getMonth() + 1) & 0x0F) << 5) | (now.getDate() & 0x1F);
+
+    const body = [];
+    const central = [];
+    let offset = 0;
+
+    files.forEach((file) => {
+      const name = enc.encode(file.name);
+      const bytes = file.bytes;
+      const crc = crc32(bytes);
+
+      const lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true);
+      lh.setUint16(4, 20, true);
+      lh.setUint16(6, 0x0800, true);
+      lh.setUint16(8, 0, true);
+      lh.setUint16(10, dosTime, true);
+      lh.setUint16(12, dosDate, true);
+      lh.setUint32(14, crc, true);
+      lh.setUint32(18, bytes.length, true);
+      lh.setUint32(22, bytes.length, true);
+      lh.setUint16(26, name.length, true);
+      lh.setUint16(28, 0, true);
+      body.push(new Uint8Array(lh.buffer), name, bytes);
+
+      const cd = new DataView(new ArrayBuffer(46));
+      cd.setUint32(0, 0x02014b50, true);
+      cd.setUint16(4, 20, true);
+      cd.setUint16(6, 20, true);
+      cd.setUint16(8, 0x0800, true);
+      cd.setUint16(10, 0, true);
+      cd.setUint16(12, dosTime, true);
+      cd.setUint16(14, dosDate, true);
+      cd.setUint32(16, crc, true);
+      cd.setUint32(20, bytes.length, true);
+      cd.setUint32(24, bytes.length, true);
+      cd.setUint16(28, name.length, true);
+      cd.setUint32(42, offset, true);
+      central.push(new Uint8Array(cd.buffer), name);
+
+      offset += 30 + name.length + bytes.length;
+    });
+
+    const centralSize = central.reduce((n, part) => n + part.length, 0);
+    const eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0, 0x06054b50, true);
+    eocd.setUint16(8, files.length, true);
+    eocd.setUint16(10, files.length, true);
+    eocd.setUint32(12, centralSize, true);
+    eocd.setUint32(16, offset, true);
+
+    return new Blob(body.concat(central, [new Uint8Array(eocd.buffer)]),
+                    { type: 'application/zip' });
+  }
+
+    try {
+      const files = [];
+      for (let i = 0; i < items.length; i++) {
+        btn.textContent = '下载中 ' + (i + 1) + '/' + items.length;
+        try {
+          const blob = await fetchQrBlob(items[i]);
+          files.push({ name: safeFileName(items[i], i),
+                       bytes: new Uint8Array(await blob.arrayBuffer()) });
+        } catch (e) {
+          console.warn('第 ' + (i + 1) + ' 个二维码下载失败', e);
+        }
+      }
+
+      if (!files.length) {
+        toast('二维码生成失败，请检查内容长度后重试', 3600);
+        return;
+      }
+
+      saveBlob(makeZip(files), 'qrcodes_' + Date.now() + '.zip');
+      toast('已打包 ' + files.length + ' 个二维码并开始下载');
+    } catch (e) {
+      toast('下载失败：' + (e && e.message ? e.message : '网络异常'), 3200);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+
+  /* ============ 放大查看 ============ */
+  function openLightbox(i) {
+    const text = currentItems[i];
+    if (text == null) return;
+    lbIndex = i;
+
+    const info = currentMeta && currentMeta[i] ? currentMeta[i] : null;
+    const isUrl = /^https?:\/\//i.test(text);
+
+    lbImg.src = buildQrUrl(text, QR_SIZE_BIG);
+    lbImg.alt = '二维码：' + text;
+    lbTitle.textContent = info ? info.platform.name : '二维码';
+
+    lbLink.hidden = !isUrl;
+    lbTip.hidden = !isUrl;
+    lbWeb.hidden = !isUrl;
+    lbCopy.textContent = isUrl ? '复制链接' : '复制内容';
+    if (isUrl) {
+      lbLink.href = text;
+      lbLinkText.textContent = shortUrl(text, 64);
+      const app = info && info.platform && APP_SCHEMES[info.platform.key];
+      lbTip.textContent = app
+        ? '点链接直接跳到「' + info.platform.name + '」，没装就用下面的「用浏览器打开」'
+        : '点链接用浏览器打开';
+    }
+
+    lightbox.hidden = false;
+    document.body.style.overflow = 'hidden';
+    lbClose.focus();
+  }
+
+  function closeLightbox() {
+    if (lightbox.hidden) return;
+    lightbox.hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  function copyText(s) {
+    if (!s) return;
+    const ok = () => toast('已复制到剪贴板');
+    const fail = () => toast('复制失败，请手动选择文本');
+
+    function legacyCopy() {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = s;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        document.body.appendChild(ta);
+        ta.select();
+        const done = document.execCommand('copy');
+        document.body.removeChild(ta);
+        done ? ok() : fail();
+      } catch (e) { fail(); }
+    }
+
+    // 局域网 http 访问时 navigator.clipboard 不可用（非安全上下文），退回老办法
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(s).then(ok, legacyCopy);
+      return;
+    }
+    legacyCopy();
+  }
+
+  /* ============ 手机点文字 → 唤起 App ============ */
+  // 各平台自定义协议：手机上点链接直接唤起 App，不再先过一遍网页。
+  // 之前"先走 https 等系统接管"的写法在淘宝上行不通——它的网页落地页会
+  // 强制登录，页面确实跳走了（visibilitychange 已触发），兜底协议永远轮不到。
+  const APP_SCHEMES = {
+    jd: (u) => 'openapp.jdmobile://virtual?params=' + encodeURIComponent(
+      JSON.stringify({ category: 'jump', des: 'm', url: u })),
+    taobao: (u) => 'taobao://' + u.replace(/^https?:\/\//i, ''),
+    tmall: (u) => 'tmall://' + u.replace(/^https?:\/\//i, ''),
+    pdd: (u) => 'pinduoduo://' + u.replace(/^https?:\/\//i, ''),
+    douyin: (u) => 'snssdk1128://webview?url=' + encodeURIComponent(u),
+    xhs: (u) => 'xhsdiscover://' + u.replace(/^https?:\/\//i, ''),
+    weibo: (u) => 'sinaweibo://' + u.replace(/^https?:\/\//i, ''),
+    bili: (u) => 'bilibili://' + u.replace(/^https?:\/\//i, ''),
+    zhihu: (u) => 'zhihu://' + u.replace(/^https?:\/\//i, ''),
+    kuaishou: (u) => 'kwai://' + u.replace(/^https?:\/\//i, '')
+  };
+
+  function isMobileUA() {
+    return /Android|iPhone|iPad|iPod|HarmonyOS|Mobile/i.test(navigator.userAgent);
+  }
+
+  // 唤起失败过的链接：同一张码再点就走网页，不必反复试协议
+  let schemeFailedUrl = '';
+
+  function openInWeb(url) {
+    if (!url) return;
+    if (isMobileUA()) window.location.href = url;
+    else window.open(url, '_blank', 'noopener');
+  }
+
+  function openInApp(url, platform) {
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    if (!isMobileUA()) { window.open(url, '_blank', 'noopener'); return; }
+
+    const build = platform && APP_SCHEMES[platform.key];
+    if (!build) { openInWeb(url); return; }
+    if (schemeFailedUrl === url) { openInWeb(url); return; }
+
+    // 直接跳 App。1.8 秒后页面还在前台，说明没唤起来（多半没装）
+    let taken = false;
+    const onVis = () => { if (document.visibilityState === 'hidden') taken = true; };
+    document.addEventListener('visibilitychange', onVis);
+
+    try { window.location.href = build(url); } catch (e) {}
+
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', onVis);
+      if (taken || document.visibilityState !== 'visible') return;
+      schemeFailedUrl = url;
+      toast('没能唤起' + (platform ? '「' + platform.name + '」' : ' App') +
+            '，可能没装。再点一次改用网页打开', 4200);
+    }, 1800);
+  }
+
+  /* ============ 最近生成记录 ============ */
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveHistoryTo(arr) {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+
+  function saveHistory(items) {
+    const arr = loadHistory();
+    arr.unshift({
+      ts: Date.now(),
+      count: items.length,
+      sample: items.slice(0, 12),
+      preview: items[0]
+    });
+    saveHistoryTo(arr.slice(0, HISTORY_LIMIT));
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const arr = loadHistory();
+    btnClearHistory.hidden = arr.length === 0;
+
+    if (!arr.length) {
+      historyBody.innerHTML = '<div class="history-empty">暂无生成记录</div>';
+      return;
+    }
+
+    const ul = document.createElement('ul');
+    ul.className = 'history-list';
+
+    arr.forEach((rec, i) => {
+      const li = document.createElement('li');
+      li.dataset.i = i;
+      li.innerHTML =
+        '<img src="' + buildQrUrl(rec.preview, 120) + '" alt="">' +
+        '<div class="history-main">' +
+          '<div class="t">' + escapeHtml(rec.sample.slice(0, 3).join(' · ')) +
+            (rec.count > 3 ? ' 等 ' + rec.count + ' 项' : '') + '</div>' +
+          '<div class="m">' + formatTime(rec.ts) + ' · 共 ' + rec.count + ' 个二维码</div>' +
+        '</div>' +
+        '<span class="go">载入</span>';
+      const thumb = li.querySelector('img');
+      thumb.addEventListener('error', () => { thumb.style.visibility = 'hidden'; });
+      li.addEventListener('click', () => {
+        inputEl.value = rec.sample.join('\n');
+        if (rec.count > rec.sample.length) {
+          toast('记录仅保留前 ' + rec.sample.length + ' 条，可重新编辑后生成');
+        }
+        handleGenerate();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      ul.appendChild(li);
+    });
+
+    historyBody.innerHTML = '';
+    historyBody.appendChild(ul);
+  }
+
+  /* ============ 文件批量导入（txt / csv / tsv） ============ */
+  function decodeBuffer(buf) {
+    const bytes = new Uint8Array(buf);
+    // 去掉 UTF-8 BOM
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes.subarray(3));
+    }
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch (e) {
+      // Excel 导出的 CSV 常为 GBK 编码
+      try { return new TextDecoder('gbk').decode(bytes); }
+      catch (_) { return new TextDecoder('utf-8').decode(bytes); }
+    }
+  }
+
+  function detectDelimiter(line) {
+    let best = ',';
+    let max = 0;
+    [',', ';', '\t', '|'].forEach((d) => {
+      const n = line.split(d).length - 1;
+      if (n > max) { max = n; best = d; }
+    });
+    return max > 0 ? best : ',';
+  }
+
+  // 支持带引号包裹、字段内含分隔符或换行的标准 CSV
+  function parseDelimited(text, delim) {
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuote = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inQuote) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuote = false;
+        } else {
+          field += ch;
+        }
+      } else if (ch === '"') {
+        inQuote = true;
+      } else if (ch === delim) {
+        row.push(field); field = '';
+      } else if (ch === '\n') {
+        row.push(field); rows.push(row); row = []; field = '';
+      } else if (ch !== '\r') {
+        field += ch;
+      }
+    }
+    row.push(field);
+    rows.push(row);
+
+    return rows
+      .map((r) => r.map((c) => c.trim()))
+      .filter((r) => r.some((c) => c !== ''));
+  }
+
+  function parseTable(text, ext) {
+    if (ext === 'csv' || ext === 'tsv') {
+      const firstLine = text.split(/\r?\n/).find((l) => l.trim()) || '';
+      const delim = ext === 'tsv' ? '\t' : detectDelimiter(firstLine);
+      const rows = parseDelimited(text, delim);
+      const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
+      return { rows: rows, cols: cols || 1 };
+    }
+    const rows = text.split(/\r?\n/)
+      .map((l) => [l.trim()])
+      .filter((r) => r[0] !== '');
+    return { rows: rows, cols: 1 };
+  }
+
+  // 首行看起来像表头：短、无数字、无链接
+  function looksLikeHeader(rows) {
+    if (rows.length < 2) return false;
+    return rows[0].every((c) => c.length <= 16 && !/[0-9]/.test(c) && !/:\/\//.test(c));
+  }
+
+  function currentImportItems() {
+    if (!importState) return null;
+    const rows = importState.rows;
+    const col = importState.cols > 1 ? Number(colSelect.value) : 0;
+    const skip = (!headerWrap.hidden && headerSkip.checked) ? 1 : 0;
+    return rows.slice(skip).map((r) => (r[col] || '').trim()).filter(Boolean);
+  }
+
+  function applyImport() {
+    const items = currentImportItems();
+    if (!items) return;
+    inputEl.value = items.join('\n');
+    renderPreview([]);
+    toast(items.length ? '已导入 ' + items.length + ' 条内容' : '文件中没有可用内容');
+  }
+
+  function showImportBar(name, rows, cols, isDelimited) {
+    importState = { name: name, rows: rows, cols: cols };
+    importNameText.textContent = name;
+
+    colSelect.innerHTML = '';
+    for (let i = 0; i < cols; i++) {
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      const head = (rows[0] && rows[0][i]) ? rows[0][i] : '';
+      const label = head || '第 ' + (i + 1) + ' 列';
+      opt.textContent = label.length > 12 ? label.slice(0, 12) + '…' : label;
+      colSelect.appendChild(opt);
+    }
+
+    const multi = cols > 1;
+    colLabel.hidden = !multi;
+    colSelect.hidden = !multi;
+    headerWrap.hidden = rows.length < 2;
+    // csv/tsv 即使只有一列，首行像表头也默认跳过（例如模板文件里的“内容”）
+    headerSkip.checked = looksLikeHeader(rows) && (multi || !!isDelimited);
+
+    importBar.hidden = false;
+  }
+
+  function handleFile(file) {
+    if (!file) return;
+    const name = file.name || '未命名文件';
+    const ext = (name.split('.').pop() || '').toLowerCase();
+
+    if (['txt', 'text', 'csv', 'tsv'].indexOf(ext) === -1) {
+      toast('仅支持 .txt / .csv / .tsv 文件，当前为 .' + ext, 3000);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = function () { toast('文件读取失败，请重试'); };
+    reader.onload = function () {
+      try {
+        const text = decodeBuffer(reader.result);
+        const table = parseTable(text, ext);
+
+        if (!table.rows.length) {
+          toast('文件内容为空');
+          return;
+        }
+
+        showImportBar(name, table.rows, table.cols, /^(csv|tsv)$/.test(ext));
+        applyImport();
+      } catch (e) {
+        toast('文件解析失败：' + (e && e.message ? e.message : '格式不支持'), 3000);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // 下载导入模板：一行一条内容。
+  // CSV：带「内容」表头 + UTF-8 BOM（Excel 双击打开不乱码，导入时自动跳过表头）
+  // TXT：纯文本、不带表头（txt 按行读取，首行不会被自动忽略）
+  function downloadTemplate(type) {
+    const isTxt = type === 'txt';
+    const lines = ['https://example.com', '产品编号 A-1001', '测试内容123'];
+    const body = (isTxt ? '' : '内容\r\n') + lines.join('\r\n') + '\r\n';
+
+    saveBlob(
+      new Blob(['\uFEFF' + body], {
+        type: isTxt ? 'text/plain;charset=utf-8' : 'text/csv;charset=utf-8'
+      }),
+      '二维码批量生成模板.' + (isTxt ? 'txt' : 'csv')
+    );
+    toast('已下载 ' + (isTxt ? 'TXT' : 'CSV') + ' 模板：一行一条内容');
+  }
+
+  /* ============ 事件绑定 ============ */
+  $('btnGen').addEventListener('click', () => handleGenerate(false));
+  $('btnExtract').addEventListener('click', () => {
+    setMode('smart');
+    handleGenerate(true);
+  });
+  $('btnDownloadAll').addEventListener('click', handleDownloadAll);
+
+  // 识别方式切换：切完清空预览，避免看到上一轮的残留结果
+  modeSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mode]');
+    if (!btn || btn.dataset.mode === mode) return;
+    setMode(btn.dataset.mode);
+    renderPreview([], null);
+  });
+
+  // 边输入边提示识别到几个链接（防抖，避免每敲一个字就扫全文）
+  let hintTimer = null;
+  inputEl.addEventListener('input', () => {
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(updateLinkHint, 160);
+  });
+
+  $('btnClear').addEventListener('click', () => {
+    inputEl.value = '';
+    importState = null;
+    importBar.hidden = true;
+    renderPreview([]);
+    inputEl.focus();
+  });
+
+  // 上传文件
+  $('btnUpload').addEventListener('click', () => fileInput.click());
+
+  // 下载模板：按钮展开格式菜单（CSV / TXT）
+  const tplMenu = $('tplMenu');
+  const btnTemplate = $('btnTemplate');
+
+  function closeTplMenu() {
+    tplMenu.hidden = true;
+    btnTemplate.setAttribute('aria-expanded', 'false');
+  }
+
+  btnTemplate.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = tplMenu.hidden;
+    tplMenu.hidden = !open;
+    btnTemplate.setAttribute('aria-expanded', String(open));
+  });
+
+  tplMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-tpl]');
+    if (!item) return;
+    downloadTemplate(item.dataset.tpl);
+    closeTplMenu();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!tplMenu.hidden && !e.target.closest('.tpl-wrap')) closeTplMenu();
+  });
+  /* ============ 使用说明弹窗 ============ */
+  const helpModal = $('helpModal');
+  const helpBtn   = $('btnHelp');
+
+  function openHelp() {
+    if (!helpModal.hidden) return;
+    helpModal.hidden = false;
+    helpBtn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('modal-open');
+    // 焦点移入弹窗容器，读屏会先播报标题；不抢焦点到按钮，避免出现多余焦点环
+    helpModal.querySelector('.modal-card').focus({ preventScroll: true });
+  }
+
+  function closeHelp() {
+    if (helpModal.hidden) return;
+    helpModal.hidden = true;
+    helpBtn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('modal-open');
+    helpBtn.focus({ preventScroll: true });
+  }
+
+  helpBtn.addEventListener('click', openHelp);
+  $('helpClose').addEventListener('click', closeHelp);
+  helpModal.addEventListener('click', (e) => {
+    if (e.target === helpModal) closeHelp();
+  });
+  // 弹窗内只有关闭按钮可聚焦，Tab 不再跑到背景页面
+  helpModal.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    $('helpClose').focus({ preventScroll: true });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!helpModal.hidden) { closeHelp(); return; }
+    if (!lightbox.hidden) { closeLightbox(); return; }
+    if (!tplMenu.hidden) closeTplMenu();
+  });
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (f) handleFile(f);
+    fileInput.value = '';   // 允许重复选择同一个文件
+  });
+
+  // 导入信息条上的列 / 表头切换
+  colSelect.addEventListener('change', applyImport);
+  headerSkip.addEventListener('change', applyImport);
+  $('importClose').addEventListener('click', () => {
+    importBar.hidden = true;
+    importState = null;
+  });
+
+  // 拖拽文件到文本框直接导入
+  const dropTarget = inputEl.closest('.panel-input') || inputEl;
+  ['dragenter', 'dragover'].forEach((ev) => {
+    dropTarget.addEventListener(ev, (e) => {
+      const dt = e.dataTransfer;
+      if (dt && Array.prototype.indexOf.call(dt.types || [], 'Files') !== -1) {
+        e.preventDefault();
+        dt.dropEffect = 'copy';
+        inputEl.classList.add('dragover');
+      }
+    });
+  });
+  ['dragleave', 'dragend'].forEach((ev) => {
+    dropTarget.addEventListener(ev, (e) => {
+      if (!dropTarget.contains(e.relatedTarget)) inputEl.classList.remove('dragover');
+    });
+  });
+  dropTarget.addEventListener('drop', (e) => {
+    e.preventDefault();
+    inputEl.classList.remove('dragover');
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files.length) handleFile(dt.files[0]);
+  });
+
+  btnClearHistory.addEventListener('click', () => {
+    saveHistoryTo([]);
+    renderHistory();
+    toast('已清空生成记录');
+  });
+
+  // 预览区：下载单张 / 点图放大 / 点下方文字唤起 App
+  previewBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dl');
+    if (btn) {
+      const i = Number(btn.dataset.i);
+      const text = currentItems[i];
+      if (text == null) return;
+      downloadOne(text, i).catch(() => toast('下载失败，已尝试在新窗口打开'));
+      return;
+    }
+
+    const img = e.target.closest('.qr-item img');
+    if (img) { openLightbox(Number(img.dataset.i)); return; }
+
+    const a = e.target.closest('.cap a');
+    if (a) {
+      e.preventDefault();
+      const i = Number(a.dataset.i);
+      const info = currentMeta && currentMeta[i];
+      openInApp(a.getAttribute('href'), info && info.platform);
+    }
+  });
+
+  // 放大后的操作
+  $('lbClose').addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+  lbLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    const info = currentMeta && currentMeta[lbIndex];
+    openInApp(lbLink.getAttribute('href'), info && info.platform);
+  });
+  $('lbDownload').addEventListener('click', () => {
+    const text = currentItems[lbIndex];
+    if (text == null) return;
+    downloadOne(text, lbIndex).catch(() => toast('下载失败，已尝试在新窗口打开'));
+  });
+  lbCopy.addEventListener('click', () => copyText(currentItems[lbIndex]));
+  lbWeb.addEventListener('click', () => openInWeb(currentItems[lbIndex]));
+
+  // Ctrl/Cmd + Enter 快捷生成
+  inputEl.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleGenerate();
+    }
+  });
+
+  /* ============ 初始化 ============ */
+  try {
+    const saved = localStorage.getItem(MODE_KEY);
+    if (saved === 'raw' || saved === 'smart') mode = saved;
+  } catch (e) {}
+  setMode(mode);
+  renderHistory();
+  renderPreview([]);
+})();
+</script>
+</body>
+</html>
