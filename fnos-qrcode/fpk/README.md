@@ -6,7 +6,7 @@
 > 本文件是**开发者向**的：构建、实现要点、测试记录、已知限制。
 > 只想安装和使用的话，看 **[`README-USER.md`](./README-USER.md)**（面向使用者的完整说明）。
 
-- 默认端口 **10001**，**安装时可指定**，**装好后可随时改**
+- 默认端口 **12990**，**安装时可指定**，**装好后可随时改**
 - 用户认证**可选**（安装时和装好后都能开关）
 - 纯 Python3 标准库实现，不需要 node、不需要 Docker、不需要联网装依赖
 - v1.2.1：**修复手机点链接卡在登录页**。淘宝等平台的 https 短链在手机浏览器里会落到强制登录页，
@@ -36,32 +36,39 @@
 | `cmd/` | 生命周期脚本（安装 / 启动 / 停止 / 配置 / 升级 / 卸载） |
 | `wizard/` | 安装、配置、卸载三个向导的字段定义 |
 | `config/privilege`、`config/resource` | 运行身份（package 专用用户）与资源声明 |
-| `app/ui/` | 前端页面 + 图标 + 桌面入口配置 |
-| `app/server/app.py` | 内置 HTTP 服务：静态托管 + 可选登录认证 |
+| `app/ui/` | 前端页面 + 图标 + 桌面入口配置（页面由 `build-fpk.sh` 从仓库 `ui/` 生成，不入库） |
+| `app/server/app.py` | 内置 HTTP 服务（由 `build-fpk.sh` 从仓库 `server/app.py` 复制生成，不入库） |
 | `tools/` | 图标生成器与备用打包器（无 fnOS 环境时用） |
 | `build-fpk.sh` | 一键构建脚本 |
 
 ## 构建
 
+`app/` 下的内容都是**构建时生成**的，不入库：
+
+| 包内路径 | 真源 |
+| --- | --- |
+| `app/server/app.py` | 仓库根 `server/app.py` |
+| `app/ui/index.html`、`app/ui/qrscan.html`、`app/ui/vendor/` | 仓库根 `ui/` |
+
+因此不要单独把 `fpk/` 目录拷走再打包——那样包里会缺服务端与页面。统一走构建脚本：
+
 **推荐：在飞牛设备上构建**（官方 `fnpack` 会做完整校验）
 
 ```bash
-# 把 fpk/ 整个目录拷到 NAS，然后在 fpk/ 里执行
-fnpack build
-# 产出 fnos-qrcode.fpk
+# 在仓库根执行：脚本先同步 app/ 内容，检测到 fnpack 就直接用它打包
+bash fnos-qrcode/fpk/build-fpk.sh
+# 产出 fnos-qrcode/fnos-qrcode_<版本>.fpk
 ```
 
 fnOS 自带 `fnpack`（`/usr/local/bin/fnpack`），无需额外安装。
 
-**没有 fnOS 时**，`build-fpk.sh` 会自动回退到内置打包器（`tools/build_fpk.py`，
+**没有 fnOS 时**，同一脚本会自动回退到内置打包器（`tools/build_fpk.py`，
 按 fnpack 产物结构生成同构的 `.fpk`）：
 
 ```bash
 bash build-fpk.sh          # 构建
 bash build-fpk.sh --list    # 只列打包清单
 ```
-
-两者都会先把仓库根目录的 `index.html` 同步到 `app/ui/index.html`，保证页面只有一份源。
 
 ## 安装
 
@@ -73,7 +80,7 @@ bash build-fpk.sh --list    # 只列打包清单
 
    | 向导项 | 默认 | 说明 |
    | --- | --- | --- |
-   | 服务端口 | `10001` | 1024~65535，不能与其他应用冲突 |
+   | 服务端口 | `12990` | 1024~65535，不能与其他应用冲突 |
    | 是否开启用户认证 | 不开启 | 开启后访问本应用需先登录 |
    | 登录用户名 | `admin` | 仅在开启认证时生效 |
    | 登录密码 | 空 | 至少 6 位；开启认证时必填 |
@@ -84,7 +91,7 @@ bash build-fpk.sh --list    # 只列打包清单
 
 ```bash
 cat > /tmp/install.env <<'ENV'
-wizard_port=10001
+wizard_port=12990
 wizard_auth_enable=off
 wizard_auth_user=admin
 wizard_auth_pass=

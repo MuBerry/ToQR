@@ -51,14 +51,16 @@ def collect_tree(root):
     items = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if not should_skip(d))
-        rel_dir = os.path.relpath(dirpath, root)
+        rel_dir = os.path.relpath(dirpath, root).replace(os.sep, '/')
         if rel_dir != '.':
             items.append((dirpath, rel_dir, True))
         for name in sorted(filenames):
             if should_skip(name):
                 continue
             full = os.path.join(dirpath, name)
-            rel = name if rel_dir == '.' else os.path.join(rel_dir, name)
+            # tar 内路径一律用正斜杠：Windows 下 os.path.join 会给反斜杠，
+            # 装到 Linux 侧会变成一个带反斜杠的文件名而不是目录层级
+            rel = name if rel_dir == '.' else rel_dir + '/' + name
             items.append((full, rel, False))
     return items
 
@@ -146,6 +148,9 @@ def build(list_only=False):
         sys.exit('缺少 UI 目录：%s（manifest desktop_uidir 指向它）' % ui_dir)
     if not os.path.isfile(os.path.join(ui_dir, 'index.html')):
         sys.exit('缺少 %s/index.html —— 先执行 build-fpk.sh 同步前端页面' % os.path.relpath(ui_dir, FPK_DIR))
+    if not os.path.isfile(os.path.join(APP_DIR, 'server', 'app.py')):
+        sys.exit('缺少 app/server/app.py —— 先执行 build-fpk.sh 同步服务端'
+                 '（唯一真源是仓库根 server/app.py，不再入库）')
 
     app_items = collect_tree(APP_DIR)
 

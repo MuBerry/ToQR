@@ -7,7 +7,7 @@
         "field": "wizard_port",
         "label": "服务端口",
         "helpText": "修改后应用会自动重启并改用新端口，桌面图标入口同步生效。取值范围 1024~65535。",
-        "initValue": "10001",
+        "initValue": "12990",
         "rules": [
           {
             "required": true,

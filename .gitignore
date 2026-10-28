@@ -10,7 +10,8 @@ dist/
 build/
 *.spec
 
-# 构建产物：fpk 打包时由 build-fpk.sh 从 ui/ 复制生成
+# 构建产物：fpk 打包时由 build-fpk.sh 从 ui/ 与 server/ 复制生成
+fnos-qrcode/fpk/app/server/app.py
 fnos-qrcode/fpk/app/ui/index.html
 fnos-qrcode/fpk/app/ui/qrscan.html
 fnos-qrcode/fpk/app/ui/vendor/

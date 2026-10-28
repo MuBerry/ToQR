@@ -15,7 +15,17 @@ ROOT_DIR="$(dirname "$FPK_DIR")"
 LIST_ONLY=0
 [ "${1:-}" = "--list" ] && LIST_ONLY=1
 
-echo "==> 1/5 同步前端页面"
+echo "==> 1/5 同步前端页面与服务端"
+# 服务端唯一真源在仓库根 server/app.py，打包时复制进来，仓库里不再保留副本
+SERVER_SRC="$ROOT_DIR/../server/app.py"
+if [ ! -f "$SERVER_SRC" ]; then
+  echo "找不到服务端源文件：$SERVER_SRC" >&2
+  exit 1
+fi
+mkdir -p "$FPK_DIR/app/server"
+cp "$SERVER_SRC" "$FPK_DIR/app/server/app.py"
+echo "    server/app.py -> app/server/app.py ($(wc -c <"$FPK_DIR/app/server/app.py") bytes)"
+
 # 页面源码统一在 ui/index.html（根目录不再放重复副本）
 SRC="$ROOT_DIR/../ui/index.html"
 if [ ! -f "$SRC" ]; then

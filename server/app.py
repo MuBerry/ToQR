@@ -5,12 +5,12 @@
 纯 Python3 标准库实现，无第三方依赖。职责：
 
 1. 托管 ui/ 下的静态页面（二维码批量生成器前端）
-2. 端口可配置（默认 8080），配置来自 settings.json
+2. 端口可配置（默认 12990），配置来自 settings.json
 3. 可选用户认证：开启后需登录（PBKDF2 存密码 + HMAC 签名 Cookie）
 
 命令行：
     python3 server/app.py               启动服务（端口读 settings.json）
-    python3 server/app.py --port 8080   指定端口启动（不写配置）
+    python3 server/app.py --port 12990  指定端口启动（不写配置）
     python3 server/app.py --print-port  打印当前端口
     python3 server/app.py --check       探测当前端口是否已在监听
     python3 server/app.py --set [选项]   合并写入 settings.json
@@ -53,10 +53,23 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
-APPNAME = 'toqr'
-APPVERSION = '2.0.0'
-DEFAULT_PORT = 8080
+# 应用标识与默认端口允许被环境变量覆盖：fpk 包在 cmd/main 里设为
+# fnos-qrcode / 12990，使升级后的旧安装沿用原有会话 Cookie 与端口语义。
+APPNAME = os.environ.get('TOQR_APP_NAME') or 'toqr'
+APPVERSION = '1.2.8'
 PORT_MIN, PORT_MAX = 1024, 65535
+
+
+def _env_default_port(fallback=12990):
+    """默认端口可被 TOQR_DEFAULT_PORT 覆盖；缺失或越界时回落到 12990。"""
+    try:
+        value = int(os.environ.get('TOQR_DEFAULT_PORT') or 0)
+    except (TypeError, ValueError):
+        return fallback
+    return value if PORT_MIN <= value <= PORT_MAX else fallback
+
+
+DEFAULT_PORT = _env_default_port()
 SESSION_COOKIE = 'qr_session'
 SESSION_TTL = 7 * 24 * 3600          # 7 天
 PBKDF2_ITERATIONS = 200_000

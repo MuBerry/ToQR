@@ -91,7 +91,7 @@ mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" "$TRIM_PKGTMP" 2>/dev/null || fail "创�
 log "运行目录就绪：$TRIM_PKGVAR"
 
 # ---------- 2. 解析并校验安装向导参数 ----------
-PORT="${wizard_port:-10001}"
+PORT="${wizard_port:-12990}"
 PORT="$(printf '%s' "$PORT" | tr -d '[:space:]')"
 case "$PORT" in
   ''|*[!0-9]*) fail "服务端口必须是数字，收到：${wizard_port:-（空）}" ;;

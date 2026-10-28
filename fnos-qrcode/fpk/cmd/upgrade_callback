@@ -81,9 +81,9 @@ if [ -f "$SETTINGS" ]; then
   echo "fnos-qrcode[upgrade] 已保留原有配置：$SETTINGS"
 else
   # 全新安装缺少配置（例如升级自不含配置的旧版本），补一份默认值
-  "$PY" "$APP_PY" --set --port 10001 --auth off >/dev/null 2>&1 || true
-  PORT=10001
-  echo "fnos-qrcode[upgrade] 未发现配置文件，已写入默认配置（端口 10001、不开启认证）"
+  "$PY" "$APP_PY" --set --port 12990 --auth off >/dev/null 2>&1 || true
+  PORT=12990
+  echo "fnos-qrcode[upgrade] 未发现配置文件，已写入默认配置（端口 12990、不开启认证）"
 fi
 
 sync_manifest_port "$PORT"

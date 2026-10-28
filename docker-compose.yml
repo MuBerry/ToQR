@@ -4,11 +4,11 @@ services:
     container_name: toqr
     restart: unless-stopped
     ports:
-      - "8080:8080"          # 左边改成宿主机想用的端口；容器内固定 8080
+      - "12990:12990"        # 左边改成宿主机想用的端口；容器内固定 12990
     volumes:
       - toqr-data:/data      # settings.json 与会话数据持久化
     # 想改容器内监听端口或预置账号时，用 command 覆盖默认参数，例如：
-    # command: ["--port", "8080", "--set", "--auth", "on", "--user", "admin", "--pass", "yourpassword"]
+    # command: ["--port", "12990", "--set", "--auth", "on", "--user", "admin", "--pass", "yourpassword"]
 
 volumes:
   toqr-data:

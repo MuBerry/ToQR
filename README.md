@@ -13,7 +13,7 @@
 ```bash
 git clone https://github.com/MuBerry/ToQR.git
 cd ToQR
-python3 server/app.py --port 8080
+python3 server/app.py --port 12990
 ```
 
 要求 Python 3.8+，**不需要 `pip install`**（纯标准库）。
@@ -30,7 +30,7 @@ After=network.target
 WorkingDirectory=/opt/toqr
 Environment=TOQR_ETC_DIR=/var/lib/toqr/etc
 Environment=TOQR_VAR_DIR=/var/lib/toqr/var
-ExecStart=/usr/bin/python3 /opt/toqr/server/app.py --port 8080
+ExecStart=/usr/bin/python3 /opt/toqr/server/app.py --port 12990
 Restart=always
 RestartSec=3
 
@@ -52,18 +52,18 @@ journalctl -u toqr -f                 # 查看日志
 git clone https://github.com/MuBerry/ToQR.git
 cd ToQR
 docker build -t toqr:latest .
-docker run -d --name toqr -p 8080:8080 -v toqr-data:/data toqr:latest
+docker run -d --name toqr -p 12990:12990 -v toqr-data:/data toqr:latest
 ```
 
 也可以直接用官方镜像（GitHub Actions 自动构建推送）：
 
 ```bash
-docker run -d --name toqr -p 8080:8080 -v toqr-data:/data ghcr.io/muberry/toqr:latest
+docker run -d --name toqr -p 12990:12990 -v toqr-data:/data ghcr.io/muberry/toqr:latest
 ```
 
 | 参数 | 说明 |
 | --- | --- |
-| `-p 8080:8080` | 左边改成宿主机想用的端口，容器内固定 8080 |
+| `-p 12990:12990` | 左边改成宿主机想用的端口，容器内固定 12990 |
 | `-v toqr-data:/data` | `settings.json` 与会话持久化，容器内固定 `/data` |
 | `--set --auth on ...` | 预置登录账号，见下方「服务端管理」 |
 
@@ -77,10 +77,10 @@ docker compose logs -f        # 查看日志
 docker compose down           # 停止并移除容器（数据卷保留）
 ```
 
-`docker-compose.yml` 已配好端口 8080 与 `toqr-data` 卷；要改端口或预置账号，用 `command:` 覆盖：
+`docker-compose.yml` 已配好端口 12990 与 `toqr-data` 卷；要改端口或预置账号，用 `command:` 覆盖：
 
 ```yaml
-    command: ["--port", "8080", "--set", "--auth", "on", "--user", "admin", "--pass", "yourpassword"]
+    command: ["--port", "12990", "--set", "--auth", "on", "--user", "admin", "--pass", "yourpassword"]
 ```
 
 ### 4. 二进制运行（Windows / Linux / macOS）
@@ -89,11 +89,11 @@ docker compose down           # 停止并移除容器（数据卷保留）
 
 ```bash
 # Windows（命令行/PowerShell）
-.\toqr-<版本>-windows-amd64.exe --port 8080
+.\toqr-<版本>-windows-amd64.exe --port 12990
 
 # Linux / macOS（Apple Silicon）
 chmod +x ./toqr-<版本>-<平台>
-./toqr-<版本>-<平台> --port 8080
+./toqr-<版本>-<平台> --port 12990
 ```
 
 配置与数据默认落在可执行文件同目录的 `etc/`、`var/`；想换位置用环境变量 `TOQR_ETC_DIR` / `TOQR_VAR_DIR`。
@@ -117,7 +117,7 @@ chmod +x ./toqr-<版本>-<平台>
 bash fnos-qrcode/fpk/build-fpk.sh        # 产物 fnos-qrcode/fnos-qrcode_<版本>.fpk
 ```
 
-构建脚本会先把 `ui/` 里的页面和解码库复制进 `fnos-qrcode/fpk/app/ui/`，再按 `fnos-qrcode/fpk/manifest` 里的版本号打包。
+构建脚本会先把 `ui/` 里的页面和解码库复制进 `fnos-qrcode/fpk/app/ui/`、把 `server/app.py` 复制进 `fnos-qrcode/fpk/app/server/`，再按 `fnos-qrcode/fpk/manifest` 里的版本号打包。
 
 **5b. 纯静态（nginx，无后端）**
 
@@ -135,11 +135,11 @@ python3 fnos-qrcode/tools/sync-static.py   # 从 ui/ 生成 html/fnos-qrcode/ �
 | `fnos-qrcode/html/fnos-qrcode/` | nginx 托管的整站目录：`index.html`、`qrscan.html`、`vendor/` |
 | `fnos-qrcode/nginx/default.conf` | nginx 站点配置：同时支持根路径与 `/fnos-qrcode/` 子路径 |
 | `fnos-qrcode/nginx/reverse-proxy.conf` | 给已有反代（下级域名）用的片段 |
-| `fnos-qrcode/docker-compose.yml` | 用 nginx:alpine 起一个静态站（默认 8090 端口） |
+| `fnos-qrcode/docker-compose.yml` | 用 nginx:alpine 起一个静态站（默认 12990 端口） |
 
 ```bash
 cd fnos-qrcode
-docker compose up -d        # 起静态站，访问 http://<NAS-IP>:8090/fnos-qrcode/
+docker compose up -d        # 起静态站，访问 http://<NAS-IP>:12990/fnos-qrcode/
 ```
 
 或者直接挂到已有 nginx：
@@ -237,14 +237,14 @@ ToQR/
 │   ├── docker-compose.yml     # 用 nginx:alpine 起静态站
 │   └── README.md              # 静态部署详细说明
 ├── Dockerfile                 # 通用镜像：python:3.12-slim + server/ + ui/
-├── docker-compose.yml         # 通用镜像的 compose（8080 + toqr-data 卷）
-├── DEPLOY.md                  # fpk 构建过程与源码清单
+├── docker-compose.yml         # 通用镜像的 compose（12990 + toqr-data 卷）
+├── DEPLOY.md                  # fpk 构建流程、产物校验与安装说明
 ├── CHANGELOG.md               # 版本更新日志
 ├── README.md                  # 本文件
 └── .github/workflows/         # 打 tag 自动构建三平台二进制 + Docker 镜像并发 Release
 ```
 
-构建产物不入库（见 `.gitignore`）：`fnos-qrcode/*.fpk`、`fnos-qrcode/fpk/app/ui/{index,qrscan}.html` 与 `vendor/` 都由脚本生成，安装包只发在 [Releases](../../releases)。
+构建产物不入库（见 `.gitignore`）：`fnos-qrcode/*.fpk`、`fnos-qrcode/fpk/app/ui/{index,qrscan}.html`、`fnos-qrcode/fpk/app/ui/vendor/` 与 `fnos-qrcode/fpk/app/server/app.py` 都由脚本生成，安装包只发在 [Releases](../../releases)。
 
 ## 更新日志
 
@@ -255,4 +255,4 @@ ToQR/
 - **默认完全离线**：二维码由服务端按 QR Code Model 2 规范在本地编码成 PNG，不请求任何外部接口；页面也不引用任何 CDN 资源，NAS 不通外网同样可用，内容不出本机
 - **解析器可切换**：输入区右上方可选「默认（本机编码）」/「备用1（浏览器内离线编码）」/「备用2（草料开放平台 API，服务端同源转发）」；只有显式选备用2 才会出外网
 - 飞牛 fnOS 形态在 [`fnos-qrcode/`](fnos-qrcode/) 目录：`fpk/` 打应用包（`bash fnos-qrcode/fpk/build-fpk.sh`），`nginx/` + `html/` 是纯静态部署（页面由 `tools/sync-static.py` 从 `ui/` 生成）
-- 服务端只有 `server/app.py` 一个文件；fpk 版另有一份副本 `fnos-qrcode/fpk/app/server/app.py`，改服务端逻辑时两处都要同步
+- 服务端只有 `server/app.py` 一个文件；fpk 包里的 `fnos-qrcode/fpk/app/server/app.py` 由 `build-fpk.sh` 在打包时复制生成（不入库），改服务端逻辑只需改一处

@@ -2,6 +2,13 @@
 
 ## 未发布
 
+- **fpk 版服务端不再保存副本**：`fnos-qrcode/fpk/app/server/app.py` 改为 `build-fpk.sh` 打包时从仓库根 `server/app.py` 复制生成并加入 `.gitignore`，改服务端逻辑只需改一处；fpk 形态的应用标识与默认端口改由 `cmd/main` 通过 `TOQR_APP_NAME` / `TOQR_DEFAULT_PORT` 注入，旧安装升级后会话 Cookie 与 10001 端口语义不变
+- 修掉内置打包器在 Windows 下把 `app.tgz` 内路径写成反斜杠的问题（装到 Linux 侧会变成带反斜杠的文件名而非目录）
+- 安装前置校验新增一项：包内缺 `app/server/app.py` 时在**安装阶段**就失败并提示重新打包，避免绕过构建脚本打包后装完启动才报错
+- **默认端口统一为 `12990`**：通用服务（源码 / 二进制 / Docker）原默认 `8080`、飞牛应用包原默认 `10001`、纯静态站原默认 `8090`，现四者一致为 `12990`；仍可用 `--port`、安装/设置向导或 `TOQR_DEFAULT_PORT` 覆盖。已有安装不受影响——端口读的是各自的 `settings.json`
+
+## 1.2.8
+
 - **拆成三个文根**（彼此不跳转，直接访问 `/` 等同 `/qr`）：
   - `/qr` 不筛选内容，每行原样出码（原来的「按行原样」）
   - `/qr-shop` 只提取文本里的链接出码（原来的「智能识别」）
@@ -11,22 +18,19 @@
 - 出码页与扫码页顶栏几何完全对齐（标题块固定占位），扫码页补上「使用说明」
 - 二维码图片接口从 `/qr` 迁移到 `/api/qr`（`/qr` 现在是页面入口）
 - `/qrscan` 解码优先用浏览器原生 `BarcodeDetector`，不支持时回退到内置 ZXing（Windows / Linux 的 Chrome、Edge 走这条），两者都离线可用
-- **二维码改为本地生成**：服务端内置 QR Code Model 2 编码器（纯标准库，字节模式、纠错等级 M、版本 1~40 自动选择、8 种掩码择优），`/qr` 直接返回本机编码的 PNG。不再依赖草料开放平台公开接口，NAS 不通外网也能出码，内容不出本机
+- **二维码改为本地生成**：服务端内置 QR Code Model 2 编码器（纯标准库，字节模式、纠错等级 M、版本 1~40 自动选择、8 种掩码择优），`/api/qr` 直接返回本机编码的 PNG。不再依赖草料开放平台公开接口，NAS 不通外网也能出码，内容不出本机
 - **前端去掉外部资源**：移除 jsDelivr 上的 JSZip，改为页面内置的极简 zip 写入器（存储方式，零依赖），打包下载离线可用
 - CSP 收紧为全 `'self'`（`script-src` / `img-src` 不再放行第三方域名）
 - 页脚说明同步改为「由本机服务直接编码生成，不联网、不上传」
-- 纯静态部署包 `fnos-index/` 同样离线化：把同一套编码器与 zip 写入器内嵌进页面，无后端也能出码
-
-## 2.0.0
-
-- **重构发布形态**：不再依赖飞牛 fnOS 应用包（fpk），改为通用服务，三种部署方式任选：
+- 纯静态部署包（`fnos-qrcode/html/`）同样离线化：把同一套编码器与 zip 写入器内嵌进页面，无后端也能出码
+- **通用部署形态**：同一份服务端与页面，除飞牛应用包外也可直接用源码、Docker 或单文件二进制运行：
   - **源码运行**：`python server/app.py --port 8080`（纯 Python 标准库，无第三方依赖）
-  - **二进制运行**：Release 提供 Windows / macOS（Apple Silicon）/ Linux 单文件可执行程序，启动时 `--port` 指定端口，配置与数据自动落在可执行文件旁边的 `etc/`、`var/`（Intel Mac 走 Docker 或源码）
+  - **二进制运行**：Release 提供 Windows / macOS（Apple Silicon）/ Linux 单文件可执行程序，配置与数据自动落在可执行文件旁边的 `etc/`、`var/`
   - **Docker**：`ghcr.io/muberry/toqr`，数据卷挂 `/data`
-- 服务端更名 ToQR（原 fnos-qrcode），默认端口改为 8080，可用 `--port` 或 `--set --port N` 写入配置
+- 服务端以 ToQR 为名，通用形态默认端口 8080（`--port` 或 `--set --port N` 写配置）；飞牛应用包仍保持 10001
 - 新增环境变量：`TOQR_UI_DIR`（静态资源）、`TOQR_ETC_DIR`（配置）、`TOQR_VAR_DIR`（运行数据）
 - PyInstaller 打包后控制台输出统一 UTF-8，修复 Windows 控制台中文乱码
-- 飞牛 fnOS 原生应用包的构建脚本、manifest 与向导保留在 `fnos-qrcode` 分支，不再随主线维护
+- 飞牛应用包（`fnos-qrcode/fpk/`）与通用形态在同一仓库维护，共用同一份 `server/app.py` 与 `ui/`
 
 ## 1.2.1
 

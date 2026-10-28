@@ -8,6 +8,16 @@ fail() {
   exit 1
 }
 
+# 0. 包内必需文件
+#    app/server/app.py 由 build-fpk.sh 从仓库根 server/app.py 复制生成（不入库），
+#    若直接 fnpack build 而漏了同步步骤，这里就要拦住，别等装完启动才失败。
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+PKG_DIR="$(dirname "$SELF_DIR")"
+: "${TRIM_APPDEST:=$PKG_DIR/app}"
+if [ ! -f "$TRIM_APPDEST/server/app.py" ]; then
+  fail "安装包缺少服务端文件 app/server/app.py，请用 build-fpk.sh 重新打包"
+fi
+
 # 1. Python3
 found=""
 for candidate in python3 python; do
@@ -25,7 +35,7 @@ fi
 [ -n "$found" ] || fail "系统未找到 Python3（需要 3.6 及以上），无法运行本应用"
 
 # 2. 端口
-PORT="${wizard_port:-10001}"
+PORT="${wizard_port:-12990}"
 PORT="$(printf '%s' "$PORT" | tr -d '[:space:]')"
 case "$PORT" in
   ''|*[!0-9]*) fail "服务端口必须是数字，收到：${wizard_port:-（空）}" ;;

@@ -16,6 +16,12 @@ PKG_DIR="$(dirname "$SELF_DIR")"
 : "${TRIM_PKGETC:=$PKG_DIR/etc}"
 export TRIM_APPDEST TRIM_PKGVAR TRIM_PKGETC
 
+# 服务端唯一真源是仓库根 server/app.py（打包时复制到此处的 app/server/）。
+# 这里声明 fpk 形态的标识与默认端口，使旧安装升级后仍沿用原来的会话密钥与端口语义。
+: "${TOQR_APP_NAME:=fnos-qrcode}"
+: "${TOQR_DEFAULT_PORT:=12990}"
+export TOQR_APP_NAME TOQR_DEFAULT_PORT
+
 APP_PY="$TRIM_APPDEST/server/app.py"
 PIDFILE="$TRIM_PKGVAR/app.pid"
 LOGFILE="$TRIM_PKGVAR/app.log"
