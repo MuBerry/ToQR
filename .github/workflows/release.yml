@@ -127,6 +127,9 @@ jobs:
 
       - uses: actions/download-artifact@v5
         with:
+          # 只取三平台二进制。不加 pattern 会把 docker 任务的 gha 缓存
+          # （MuBerry~ToQR~xxxx.dockerbuild）也一起下载，解压失败导致本任务必挂。
+          pattern: bin-*
           merge-multiple: true
           path: rel
 
