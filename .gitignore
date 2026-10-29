@@ -22,3 +22,8 @@ fnos-qrcode/*.fpk.zip
 
 # 论坛发帖文案：只在本地维护，不提交
 docs/forum-post.md
+
+# Tencent Cloud EdgeOne
+.env
+.edgeone/*
+.tef_dist/*
