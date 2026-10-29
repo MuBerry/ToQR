@@ -71,6 +71,10 @@ def to_static_index(html):
 def to_static_scan(html):
     html, n_nav = NAV_RE.subn('', html, count=1)
     assert n_nav == 1, '没找到扫码页的顶栏 nav'
+    # 品牌链接指向站点根「/」，在子路径部署（nginx /fnos-qrcode/、GitHub Pages /ToQR/）下会
+    # 跳出站点目录，改成相对路径「./」，根路径与子路径部署都正确
+    html, n_brand = re.subn(r'(<a class="brand" href=")/">', r'\g<1>./">', html, count=1)
+    assert n_brand == 1, '没找到扫码页的品牌链接'
     return BANNER + html
 
 
