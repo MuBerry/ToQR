@@ -1,0 +1,978 @@
+<!-- 本文件由 fnos-qrcode/tools/sync-static.py 从 ui/ 生成，请勿手改 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>扫码识别 - 二维码批量生成器</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='4.5' fill='%231f2937'/%3E%3Crect x='4.2' y='4.2' width='6.2' height='6.2' rx='1' fill='%23ffffff'/%3E%3Crect x='13.6' y='4.2' width='6.2' height='6.2' rx='1' fill='%233b82f6'/%3E%3Crect x='4.2' y='13.6' width='6.2' height='6.2' rx='1' fill='%233b82f6'/%3E%3Crect x='13.6' y='13.6' width='6.2' height='6.2' rx='1' fill='%23ffffff'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg-page:#f9fafb;
+    --card-bg:#ffffff;
+    --card-border:#eef0f2;
+    --line:#f0f0f0;
+    --text-1:#1f2937;
+    --text-2:#374151;
+    --text-3:#4b5563;
+    --text-4:#6b7280;
+    --text-5:#9ca3af;
+    --input-border:#d1d5db;
+    --blue:#3b82f6;
+    --blue-dark:#2563eb;
+    --green:#10b981;
+    --green-dark:#059669;
+    --red:#ef4444;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none !important}
+  body{
+    background:var(--bg-page);color:var(--text-1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+    font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  .container{max-width:1180px;margin:0 auto;padding:0 24px}
+
+  /* 顶栏 */
+  .topbar{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  .topbar-inner{height:64px;display:flex;align-items:center;justify-content:flex-start;gap:16px}
+  .brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none}
+  .brand h1{font-size:18px;font-weight:700;color:var(--text-1);white-space:nowrap}
+  /* 两页标题文字长短不同，给标题块固定占位，保证按钮起点完全一致 */
+  @media (min-width:861px){ .brand{min-width:200px} }
+  .root-nav{display:flex;align-items:center;gap:8px;margin-left:6px;min-width:0}
+  .topbar-right{display:flex;align-items:center;gap:14px;margin-left:auto;flex:none}
+  .root-tab{
+    display:inline-flex;align-items:center;gap:6px;flex:none;
+    height:34px;padding:0 14px;border-radius:8px;text-decoration:none;
+    font-size:13px;font-weight:500;color:var(--text-3);
+    background:#f5f7f9;border:1px solid #e8ebef;
+    transition:background-color .15s,border-color .15s,color .15s;
+  }
+  .root-tab svg{flex:none;color:var(--text-4);transition:color .15s}
+  .root-tab:hover{background:#eef2f7;border-color:#d8dee6;color:var(--text-1)}
+  .root-tab:hover svg{color:var(--blue)}
+  .root-tab[aria-current="page"]{
+    background:#eff6ff;border-color:#bfdbfe;color:var(--blue-dark);font-weight:600;
+  }
+  .root-tab[aria-current="page"] svg{color:var(--blue)}
+  .root-tab .short{display:none}
+
+  main{padding:24px 0 40px}
+  .card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);box-shadow:0 1px 2px rgba(16,24,40,.03)}
+  .card + .card{margin-top:20px}
+  .card-body{padding:20px 22px 22px}
+  .panel-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .panel-head h2{font-size:15px;font-weight:700;color:var(--text-1)}
+  .panel-head .sub{margin-left:auto;font-size:12.5px;color:var(--text-4)}
+
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid-2 .card{margin-top:0}
+
+  /* 摄像头 */
+  .cam-wrap{
+    position:relative;width:100%;aspect-ratio:4/3;background:#0f172a;border-radius:8px;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .cam-wrap video{width:100%;height:100%;object-fit:cover;display:block}
+  .cam-empty{color:#94a3b8;font-size:13px;text-align:center;padding:0 24px;line-height:1.9}
+  .cam-badge{
+    position:absolute;left:10px;top:10px;display:inline-flex;align-items:center;gap:5px;
+    background:rgba(15,23,42,.72);color:#e2e8f0;font-size:11.5px;padding:3px 9px;border-radius:20px;
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(16,185,129,.25)}
+
+  /* 图片区 */
+  .drop{
+    border:1.5px dashed var(--input-border);border-radius:8px;padding:18px;text-align:center;
+    color:var(--text-4);font-size:13px;cursor:pointer;transition:border-color .15s,background-color .15s;
+  }
+  .drop:hover,.drop.drag{border-color:var(--blue);background:#f5f9ff}
+  .drop b{color:var(--blue-dark);font-weight:600}
+  .drop small{display:block;margin-top:4px;font-size:11.5px;color:var(--text-5)}
+
+  .img-list{list-style:none;margin-top:12px;display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto}
+  .img-list li{display:flex;align-items:center;gap:10px;padding:7px 8px;border:1px solid #f0f2f4;border-radius:7px}
+  .img-list img{width:44px;height:44px;object-fit:cover;border-radius:5px;border:1px solid #eef0f2;background:#fff;flex:none}
+  .img-meta{min-width:0;flex:1}
+  .img-meta .n{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .img-meta .r{font-size:11.5px;color:var(--text-5);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .img-meta .r.ok{color:var(--green-dark)}
+  .img-meta .r.fail{color:#b45309}
+  .img-item .x{border:none;background:none;color:var(--text-5);font-size:16px;cursor:pointer;padding:2px 5px;border-radius:5px;flex:none}
+  .img-item .x:hover{background:#f1f3f5;color:var(--text-2)}
+
+  /* 结果 */
+  textarea{
+    width:100%;min-height:180px;resize:vertical;border:1px solid var(--input-border);border-radius:6px;
+    padding:10px 12px;font-size:13.5px;line-height:1.7;color:var(--text-2);font-family:inherit;
+    outline:none;background:#fff;transition:border-color .15s,box-shadow .15s;
+  }
+  textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  textarea::placeholder{color:var(--text-5)}
+  .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:6px;
+    border:1px solid transparent;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer;
+    white-space:nowrap;transition:background-color .15s,border-color .15s,opacity .15s,transform .05s;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn-primary{background:var(--blue);color:#fff}
+  .btn-primary:hover:not(:disabled){background:var(--blue-dark)}
+  .btn-success{background:var(--green);color:#fff}
+  .btn-success:hover:not(:disabled){background:var(--green-dark)}
+  .btn-ghost{background:#fff;color:var(--text-2);border-color:var(--input-border)}
+  .btn-ghost:hover:not(:disabled){background:#f9fafb;border-color:#9ca3af}
+  .hint{font-size:12px;color:var(--text-5);margin-top:10px;line-height:1.7}
+  .notice{
+    display:flex;gap:9px;align-items:flex-start;padding:11px 13px;border-radius:8px;font-size:12.5px;
+    background:#fffbeb;border:1px solid #fde68a;color:#92400e;margin-bottom:14px;line-height:1.7;
+  }
+  .notice.err{background:#fef2f2;border-color:#fecaca;color:#b91c1c}
+  .notice svg{flex:none;margin-top:2px}
+
+  .help-btn{
+    flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
+    height:32px;padding:0 12px;border-radius:8px;cursor:pointer;
+    background:#f3f6fa;border:1px solid #e3e8ef;color:var(--text-2);
+    font-family:inherit;font-size:13px;font-weight:500;
+    -webkit-tap-highlight-color:transparent;
+    transition:background-color .15s,border-color .15s,color .15s;
+  }
+  .help-btn svg{flex:none;color:var(--blue)}
+  .help-btn:hover{background:#e9eff7;border-color:#cdd7e3;color:var(--text-1)}
+  .help-btn:active{transform:translateY(1px)}
+  .help-btn:focus-visible{outline:2px solid rgba(59,130,246,.45);outline-offset:2px}
+
+  /* ---------------- 使用说明弹窗 ---------------- */
+  body.modal-open{overflow:hidden}
+  .modal{
+    position:fixed;inset:0;z-index:70;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+    background:rgba(17,24,39,.5);backdrop-filter:blur(2px);
+    overscroll-behavior:contain;
+    animation:modalIn .16s ease-out;
+  }
+  @keyframes modalIn{from{opacity:0}to{opacity:1}}
+  .modal-card{
+    width:100%;max-width:560px;
+    max-height:min(86vh,720px);
+    display:flex;flex-direction:column;overflow:hidden;
+    background:#fff;border-radius:14px;
+    box-shadow:0 24px 60px rgba(16,24,40,.28);
+    animation:cardIn .18s ease-out;
+  }
+  @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .modal-card:focus{outline:none}
+  .modal-head{
+    flex:none;display:flex;align-items:center;gap:10px;
+    padding:15px 18px 12px;border-bottom:1px solid var(--line);
+  }
+  .modal-head h2{font-size:15px;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:7px}
+  .modal-close{
+    margin-left:auto;flex:none;width:30px;height:30px;
+    display:flex;align-items:center;justify-content:center;
+    border:none;border-radius:8px;cursor:pointer;
+    background:#f1f3f5;color:var(--text-3);font-size:17px;line-height:1;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .modal-close:hover{background:#e5e8eb;color:var(--text-1)}
+  .modal-close:focus-visible{outline:2px solid rgba(59,130,246,.45);outline-offset:2px}
+  .modal-body{
+    padding:15px 18px 20px;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+  .modal-body p{font-size:13.5px;color:var(--text-3);line-height:1.75}
+  .modal-body p + p{margin-top:8px}
+  .tips{
+    list-style:none;display:flex;flex-direction:column;gap:9px;margin-top:14px;
+  }
+  .tips li{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text-3);line-height:1.6}
+  .tips svg{flex:none;margin-top:3px}
+  body.modal-open{overflow:hidden}
+
+  footer{text-align:center;font-size:12px;color:var(--text-5);padding:0 24px 32px;line-height:1.9}
+
+  .toast{
+    position:fixed;left:50%;bottom:34px;transform:translate(-50%,14px);
+    background:rgba(31,41,55,.94);color:#fff;font-size:13px;padding:9px 16px;border-radius:6px;
+    opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:80vw;text-align:center;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  @media (max-width:1080px){
+    .root-tab{padding:0 11px;font-size:12.5px}
+    .root-nav{gap:6px}
+  }
+  @media (max-width:860px){
+    .grid-2{grid-template-columns:1fr}
+    .topbar-inner{height:auto;flex-wrap:wrap;padding-top:10px;padding-bottom:8px;gap:8px}
+    .brand h1{font-size:16px}
+    .root-nav{order:3;width:100%;margin:0;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+    .root-nav::-webkit-scrollbar{display:none}
+    .root-tab{height:32px;padding:0 11px;font-size:12.5px;border-radius:16px}
+    .root-tab .full{display:none}
+    .root-tab .short{display:inline}
+    .help-btn{height:32px;padding:0 11px;font-size:12.5px;border-radius:16px}
+  }
+  @media (max-width:560px){
+    .container{padding:0 16px}
+    .card-body{padding:16px}
+    .brand h1{font-size:16px}
+    .help-btn{height:32px;padding:0 10px;gap:5px;font-size:12.5px;white-space:nowrap}
+    .btn{height:34px;padding:0 12px;font-size:12.5px}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="./">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2.5" y="2.5" width="8" height="8" rx="1.4" fill="#1f2937"/>
+        <rect x="4.8" y="4.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="13.5" y="2.5" width="8" height="8" rx="1.4" fill="#3b82f6"/>
+        <rect x="15.8" y="4.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="2.5" y="13.5" width="8" height="8" rx="1.4" fill="#3b82f6"/>
+        <rect x="4.8" y="15.8" width="3.4" height="3.4" rx=".5" fill="#fff"/>
+        <rect x="13.5" y="13.5" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="18.1" y="13.5" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="13.5" y="18.1" width="3.4" height="3.4" rx=".6" fill="#1f2937"/>
+        <rect x="18.1" y="18.1" width="3.4" height="3.4" rx=".6" fill="#3b82f6"/>
+      </svg>
+      <h1>扫码识别</h1>
+    </a>
+    <div class="topbar-right">
+      <button type="button" class="help-btn" id="btnHelp"
+              aria-haspopup="dialog" aria-controls="helpModal" aria-expanded="false"
+              title="查看使用说明">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/>
+          <path d="M9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.1 1-1.1 1.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="16.9" r="1.15" fill="currentColor"/>
+        </svg>
+        <span>使用说明</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <div id="supportNotice" class="notice" hidden></div>
+
+  <div class="grid-2">
+    <!-- 摄像头 -->
+    <section class="card">
+      <div class="card-body">
+        <div class="panel-head">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3.5 8.5A2 2 0 0 1 5.5 6.5h1.2l1-1.6c.3-.5.8-.7 1.4-.7h5.8c.6 0 1.1.2 1.4.7l1 1.6h1.2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-8z" stroke="#3b82f6" stroke-width="1.8" stroke-linejoin="round"/>
+            <circle cx="12" cy="12.6" r="3.4" stroke="#3b82f6" stroke-width="1.8"/>
+          </svg>
+          <h2>摄像头扫码</h2>
+          <span class="sub" id="camStatus">未开启</span>
+        </div>
+
+        <div class="cam-wrap">
+          <video id="video" playsinline muted autoplay hidden></video>
+          <div class="cam-empty" id="camEmpty">
+            点下方「开启摄像头」，把二维码 / 条形码对着镜头即可自动识别
+          </div>
+          <div class="cam-badge" id="camBadge" hidden><span class="dot"></span>扫描中</div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" id="btnCamStart">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M15 8.5V6.8A1.8 1.8 0 0 0 13.2 5H5.8A1.8 1.8 0 0 0 4 6.8v10.4A1.8 1.8 0 0 0 5.8 19h7.4a1.8 1.8 0 0 0 1.8-1.8v-1.7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+              <path d="M14 12h6.5m0 0l-2.6-2.6M20.5 12l-2.6 2.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            开启摄像头
+          </button>
+          <button class="btn btn-ghost" id="btnCamStop" disabled>停止</button>
+          <button class="btn btn-ghost" id="btnCamSwitch" disabled title="在前后摄像头之间切换">切换镜头</button>
+        </div>
+        <p class="hint" id="camHint">浏览器只在 HTTPS 或 localhost 下允许调用摄像头；识别到的内容会自动追加到下方文本框。</p>
+      </div>
+    </section>
+
+    <!-- 图片识别 -->
+    <section class="card">
+      <div class="card-body">
+        <div class="panel-head">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="#3b82f6" stroke-width="1.8"/>
+            <circle cx="9" cy="9.5" r="1.6" stroke="#3b82f6" stroke-width="1.6"/>
+            <path d="M4.5 17l4.6-4.4 3.2 3 2.7-2.6 4.5 4" stroke="#3b82f6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <h2>图片识别</h2>
+          <span class="sub" id="imgCount">未选择</span>
+        </div>
+
+        <div class="drop" id="drop">
+          点击选择，或把图片拖进来 / 直接粘贴（Ctrl+V）
+          <small>支持一次多张，二维码与一维码都行</small>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" multiple hidden>
+
+        <ul class="img-list" id="imgList"></ul>
+      </div>
+    </section>
+  </div>
+
+  <!-- 结果 -->
+  <section class="card">
+    <div class="card-body">
+      <div class="panel-head">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 6.5h16M4 12h10M4 17.5h7" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round"/>
+        </svg>
+        <h2>识别结果</h2>
+        <span class="sub" id="resultCount">0 条</span>
+      </div>
+
+      <textarea id="result" readonly placeholder="扫描或识别到的内容会显示在这里"></textarea>
+
+      <div class="actions">
+        <button class="btn btn-ghost" id="btnCopy">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="8.5" y="8.5" width="11" height="11" rx="2" stroke="#374151" stroke-width="1.8"/>
+            <path d="M15.5 5.5A1.9 1.9 0 0 0 13.6 4H6.4A1.9 1.9 0 0 0 4.5 5.9v7.2c0 .9.6 1.6 1.4 1.8" stroke="#374151" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          复制
+        </button>
+        <button class="btn btn-primary" id="btnExport" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3.8v10.4m0 0l-3.6-3.6M12 14.2l3.6-3.6M4.6 17.4v1.7c0 .8.6 1.4 1.4 1.4h12c.8 0 1.4-.6 1.4-1.4v-1.7" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          导出（图片 + 文本）
+        </button>
+        <button class="btn btn-ghost" id="btnClear">清空结果</button>
+      </div>
+      <p class="hint">
+        导出为 zip：<code>images/</code> 里是原图（按序号命名），<code>results.csv</code> 逐行记录「序号 / 来源 / 图片文件 / 识别内容」，两者一一对应。
+        摄像头扫到的条目没有原图，文件名列留空。
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  解码优先用浏览器原生 BarcodeDetector，不支持时走内置 ZXing（完全离线）· 图片与识别内容只在本机处理
+</footer>
+
+<!-- 使用说明弹窗 -->
+<div class="modal" id="helpModal" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+  <div class="modal-card" tabindex="-1">
+    <div class="modal-head">
+      <h2 id="helpTitle">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="#3b82f6" stroke-width="1.9"/>
+          <path d="M9.7 9.4a2.4 2.4 0 1 1 3.4 2.2c-.8.4-1.1 1-1.1 1.8" stroke="#3b82f6" stroke-width="1.9" stroke-linecap="round"/>
+          <circle cx="12" cy="16.9" r="1.15" fill="#3b82f6"/>
+        </svg>
+        使用说明
+      </h2>
+      <button type="button" class="modal-close" id="helpClose" aria-label="关闭使用说明">×</button>
+    </div>
+    <div class="modal-body">
+      <p>摄像头扫码：点「开启摄像头」，把二维码或条形码对着镜头即可，识别到的内容会自动追加到下方文本框；同一内容 5 秒内不会重复收录。</p>
+      <p>图片识别：可以一次选多张、拖进来，或直接 Ctrl+V 粘贴截图；二维码与一维码（EAN-13、Code128 等）都能识别。</p>
+      <p>导出：打包成 zip，<code>images/</code> 里是原图（按序号命名），<code>results.csv</code> 记录「序号 / 来源 / 图片文件 / 识别内容」，图片与文本一一对应。</p>
+      <ul class="tips">
+        <li>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="#10b981"/>
+            <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          摄像头只在 HTTPS 或 localhost 下可用，HTTP 访问时页面会提示
+        </li>
+        <li>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="#10b981"/>
+            <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          识别在本机浏览器完成，图片与内容都不会上传
+        </li>
+        <li>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="9" fill="#10b981"/>
+            <path d="M6 10.3l2.6 2.6L14 7.5" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          解码优先用浏览器原生 API，不支持时自动走内置 ZXing
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="vendor/zxing.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const video = $('video');
+  const camEmpty = $('camEmpty');
+  const camBadge = $('camBadge');
+  const camStatus = $('camStatus');
+  const btnCamStart = $('btnCamStart');
+  const btnCamStop = $('btnCamStop');
+  const btnCamSwitch = $('btnCamSwitch');
+  const supportNotice = $('supportNotice');
+  const drop = $('drop');
+  const fileInput = $('fileInput');
+  const imgList = $('imgList');
+  const imgCount = $('imgCount');
+  const resultEl = $('result');
+  const resultCount = $('resultCount');
+  const btnExport = $('btnExport');
+  const toastEl = $('toast');
+
+  let detector = null;        // 原生 BarcodeDetector
+  let engine = null;          // 'native' | 'zxing'
+  let zxReader = null;        // 内置 ZXing（原生 API 不可用时兜底）
+  let grabCanvas = null;
+  let stream = null;
+  let scanning = false;
+  let facing = 'environment';
+  const lastSeen = new Map();     // 摄像头去重：内容 -> 时间戳
+  const rows = [];                // 识别记录：{text, source, firstName, index}
+  const picked = [];              // 选中的图片：{file, url, texts, done}
+
+  let toastTimer = null;
+  function toast(msg, ms) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 2400);
+  }
+
+  /* ============ 解码能力检测 ============ */
+  // 浏览器原生 Barcode Detection API：零依赖、无额外体积；Safari / Firefox 暂不支持
+  const FORMAT_WANTED = [
+    'qr_code', 'micro_qr_code', 'aztec', 'data_matrix', 'pdf417',
+    'code_128', 'code_39', 'code_93', 'codabar', 'itf',
+    'ean_13', 'ean_8', 'upc_a', 'upc_e'
+  ];
+
+  async function initEngine() {
+    // 1) 原生 Barcode Detection：Android Chrome / ChromeOS / macOS 有，速度快、支持一帧多码
+    if ('BarcodeDetector' in window) {
+      try {
+        let formats = [];
+        try { formats = await window.BarcodeDetector.getSupportedFormats(); } catch (e) { formats = []; }
+        const usable = FORMAT_WANTED.filter((f) => formats.indexOf(f) !== -1);
+        detector = usable.length ? new window.BarcodeDetector({ formats: usable })
+                                 : new window.BarcodeDetector();
+        engine = 'native';
+        return;
+      } catch (e) { detector = null; }
+    }
+    // 2) 内置 ZXing：Windows / Linux 的 Chrome、Edge 没有原生 API，只能靠它
+    if (window.ZXing && window.ZXing.BrowserMultiFormatReader) {
+      try {
+        zxReader = new window.ZXing.BrowserMultiFormatReader();
+        engine = 'zxing';
+        return;
+      } catch (e) { zxReader = null; }
+    }
+    showNotice('当前浏览器既没有原生 BarcodeDetector，也没能加载内置解码库，扫码功能不可用。', true);
+    btnCamStart.disabled = true;
+  }
+
+  function engineLabel() {
+    return engine === 'native' ? '原生 BarcodeDetector' : (engine === 'zxing' ? '内置 ZXing' : '不可用');
+  }
+
+  // ---- 统一解码入口：摄像头帧 / 图片文件 ----
+  async function decodeVideoFrame() {
+    if (engine === 'native') {
+      const codes = await detector.detect(video);
+      return codes.map((c) => c.rawValue);
+    }
+    if (engine === 'zxing') {
+      if (video.readyState < 2 || !video.videoWidth) return [];
+      if (!grabCanvas) grabCanvas = document.createElement('canvas');
+      grabCanvas.width = video.videoWidth;
+      grabCanvas.height = video.videoHeight;
+      grabCanvas.getContext('2d').drawImage(video, 0, 0);
+      try {
+        const res = zxReader.decodeFromCanvas(grabCanvas);
+        return res ? [res.getText()] : [];
+      } catch (e) { return []; }        // NotFoundException：这一帧没码，属正常
+    }
+    return [];
+  }
+
+  function loadImageEl(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('图片读取失败'));
+      img.src = url;
+    });
+  }
+
+  async function decodeImageFile(file) {
+    if (engine === 'native') {
+      const bitmap = await createImageBitmap(file);
+      const codes = await detector.detect(bitmap);
+      if (bitmap.close) bitmap.close();
+      return codes.map((c) => c.rawValue);
+    }
+    if (engine === 'zxing') {
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await loadImageEl(url);
+        const res = await zxReader.decodeFromImageElement(img);
+        return res ? [res.getText()] : [];
+      } catch (e) {
+        if (e && /NotFoundException/.test(String(e.name || e.message))) return [];
+        throw e;
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+    return [];
+  }
+
+  function showNotice(html, isErr) {
+    supportNotice.innerHTML = html;
+    supportNotice.className = 'notice' + (isErr ? ' err' : '');
+    supportNotice.hidden = false;
+  }
+
+  /* ============ 结果收集 ============ */
+  function addRow(text, source, first) {
+    const value = String(text == null ? '' : text).trim();
+    if (!value) return false;
+    rows.push({ text: value, source: source, first: first || null });
+    syncResult(true);
+    return true;
+  }
+
+  function syncResult(autoCopy) {
+    resultEl.value = rows.map((r) => r.text).join('\n');
+    resultCount.textContent = rows.length ? rows.length + ' 条' : '0 条';
+    btnExport.disabled = rows.length === 0;
+    if (autoCopy) resultEl.scrollTop = resultEl.scrollHeight;
+  }
+
+  /* ============ 摄像头 ============ */
+  function insecureHint() {
+    if (window.isSecureContext) return false;
+    showNotice('当前页面是 HTTP 访问，浏览器不允许调用摄像头。'
+      + '请改用 <b>https</b> 域名（或本机 localhost）打开本页；图片识别不受影响，可以照常使用。', false);
+    return true;
+  }
+
+  async function startCamera() {
+    if (!engine) { toast('解码器未就绪'); return; }
+    if (insecureHint()) { toast('HTTP 下无法调用摄像头，请改用 HTTPS 访问'); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast('当前浏览器不支持摄像头采集');
+      return;
+    }
+    btnCamStart.disabled = true;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      video.srcObject = stream;
+      video.hidden = false;
+      camEmpty.hidden = true;
+      camBadge.hidden = false;
+      camStatus.textContent = '扫描中';
+      btnCamStop.disabled = false;
+      btnCamSwitch.disabled = false;
+      scanning = true;
+      video.play().catch(() => {});
+      tick();
+    } catch (err) {
+      btnCamStart.disabled = false;
+      const name = err && err.name ? err.name : '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        toast('摄像头权限被拒绝，请在地址栏的权限设置里允许后重试', 3600);
+      } else if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+        toast('没有找到可用的摄像头', 3200);
+      } else {
+        toast('打开摄像头失败：' + (err && err.message ? err.message : name), 3600);
+      }
+    }
+  }
+
+  function stopCamera() {
+    scanning = false;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    video.hidden = true;
+    camEmpty.hidden = false;
+    camBadge.hidden = true;
+    camStatus.textContent = '已停止';
+    btnCamStart.disabled = false;
+    btnCamStop.disabled = true;
+    btnCamSwitch.disabled = true;
+  }
+
+  // 连续扫描：每 220ms 抓一次画面，同一条内容 5 秒内不重复入列
+  function tick() {
+    if (!scanning) return;
+    setTimeout(async () => {
+      if (!scanning) return;
+      try {
+        if (video.readyState >= 2) {
+          const values = await decodeVideoFrame();
+          const now = Date.now();
+          values.forEach((raw) => {
+            const value = String(raw || '').trim();
+            if (!value) return;
+            const seen = lastSeen.get(value);
+            if (seen && now - seen < 5000) return;
+            lastSeen.set(value, now);
+            if (addRow(value, '摄像头')) toast('识别到：' + (value.length > 40 ? value.slice(0, 40) + '…' : value));
+          });
+        }
+      } catch (e) { /* 单帧失败忽略，继续下一帧 */ }
+      tick();
+    }, 220);
+  }
+
+  function switchCamera() {
+    facing = facing === 'environment' ? 'user' : 'environment';
+    if (scanning) { stopCamera(); startCamera(); }
+  }
+
+  /* ============ 图片识别 ============ */
+  function renderPicked() {
+    imgCount.textContent = picked.length ? picked.length + ' 张' : '未选择';
+    imgList.innerHTML = '';
+    picked.forEach((item, i) => {
+      const li = document.createElement('li');
+      li.className = 'img-item';
+      const status = item.done
+        ? (item.texts.length ? '识别到 ' + item.texts.length + ' 条' : '未识别到条码')
+        : '识别中…';
+      li.innerHTML =
+        '<img alt="" src="' + item.url + '">' +
+        '<div class="img-meta">' +
+          '<div class="n" title="' + esc(item.file.name) + '">' + esc(item.file.name) + '</div>' +
+          '<div class="r ' + (item.done ? (item.texts.length ? 'ok' : 'fail') : '') + '">' + esc(status) + '</div>' +
+        '</div>' +
+        '<button class="x" type="button" title="移除这张">×</button>';
+      li.querySelector('.x').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removePicked(i);
+      });
+      imgList.appendChild(li);
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function removePicked(idx) {
+    const item = picked[idx];
+    if (!item) return;
+    URL.revokeObjectURL(item.url);
+    // 同步删掉它贡献的结果行
+    const names = item.texts;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].first === item.file.name && names.indexOf(rows[i].text) !== -1) rows.splice(i, 1);
+    }
+    picked.splice(idx, 1);
+    syncResult(false);
+    renderPicked();
+  }
+
+  async function handleFiles(files) {
+    const images = Array.prototype.filter.call(files || [], (f) => f && /^image\//.test(f.type));
+    if (!images.length) { toast('请选择图片文件'); return; }
+    images.forEach((file) => {
+      picked.push({ file: file, url: URL.createObjectURL(file), texts: [], done: false });
+    });
+    renderPicked();
+
+    for (const item of images) {
+      const entry = picked[picked.length - images.length + images.indexOf(item)];
+      try {
+        if (!engine) { entry.done = true; entry.texts = []; continue; }
+        const values = await decodeImageFile(item);
+        values.forEach((raw) => {
+          const value = String(raw || '').trim();
+          if (!value) return;
+          entry.texts.push(value);
+          addRow(value, '图片', entry.file.name);
+        });
+      } catch (e) {
+        entry.done = true;
+        entry.texts = entry.texts || [];
+        entry.error = e;
+        toast('「' + entry.file.name + '」识别失败：' + (e && e.message ? e.message : e), 3200);
+      } finally {
+        entry.done = true;
+        renderPicked();
+      }
+    }
+    if (!engine) toast('解码器不可用，图片无法识别', 3600);
+  }
+
+  /* ============ 复制 ============ */
+  async function copyResult() {
+    const text = resultEl.value;
+    if (!text) { toast('还没有可复制的内容'); return; }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        resultEl.removeAttribute('readonly');
+        resultEl.select();
+        const ok = document.execCommand('copy');
+        resultEl.setAttribute('readonly', 'readonly');
+        window.getSelection().removeAllRanges();
+        if (!ok) throw new Error('execCommand 失败');
+      }
+      toast('已复制 ' + rows.length + ' 条内容');
+    } catch (e) {
+      resultEl.removeAttribute('readonly');
+      resultEl.select();
+      toast('复制失败，已选中文本，请按 Ctrl+C', 3200);
+    }
+  }
+
+  /* ============ 打包导出：内置 zip 写入器（STORED，零依赖） ============ */
+  const CRC_TABLE = (function () {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[i] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function makeZip(files) {
+    const enc = new TextEncoder();
+    const now = new Date();
+    const dosTime = ((now.getHours() & 0x1F) << 11) | ((now.getMinutes() & 0x3F) << 5)
+                  | ((now.getSeconds() / 2) & 0x1F);
+    const dosDate = (((now.getFullYear() - 1980) & 0x7F) << 9)
+                  | (((now.getMonth() + 1) & 0x0F) << 5) | (now.getDate() & 0x1F);
+
+    const body = [];
+    const central = [];
+    let offset = 0;
+
+    files.forEach((file) => {
+      const name = enc.encode(file.name);
+      const bytes = file.bytes;
+      const crc = crc32(bytes);
+
+      const lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true);
+      lh.setUint16(4, 20, true);
+      lh.setUint16(6, 0x0800, true);
+      lh.setUint16(8, 0, true);
+      lh.setUint16(10, dosTime, true);
+      lh.setUint16(12, dosDate, true);
+      lh.setUint32(14, crc, true);
+      lh.setUint32(18, bytes.length, true);
+      lh.setUint32(22, bytes.length, true);
+      lh.setUint16(26, name.length, true);
+      lh.setUint16(28, 0, true);
+      body.push(new Uint8Array(lh.buffer), name, bytes);
+
+      const cd = new DataView(new ArrayBuffer(46));
+      cd.setUint32(0, 0x02014b50, true);
+      cd.setUint16(4, 20, true);
+      cd.setUint16(6, 20, true);
+      cd.setUint16(8, 0x0800, true);
+      cd.setUint16(10, 0, true);
+      cd.setUint16(12, dosTime, true);
+      cd.setUint16(14, dosDate, true);
+      cd.setUint32(16, crc, true);
+      cd.setUint32(20, bytes.length, true);
+      cd.setUint32(24, bytes.length, true);
+      cd.setUint16(28, name.length, true);
+      cd.setUint32(42, offset, true);
+      central.push(new Uint8Array(cd.buffer), name);
+
+      offset += 30 + name.length + bytes.length;
+    });
+
+    const centralSize = central.reduce((n, part) => n + part.length, 0);
+    const eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0, 0x06054b50, true);
+    eocd.setUint16(8, files.length, true);
+    eocd.setUint16(10, files.length, true);
+    eocd.setUint32(12, centralSize, true);
+    eocd.setUint32(16, offset, true);
+
+    return new Blob(body.concat(central, [new Uint8Array(eocd.buffer)]),
+                    { type: 'application/zip' });
+  }
+
+  function csvCell(v) {
+    const s = String(v == null ? '' : v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function extOf(name) {
+    const m = /\.([a-z0-9]{2,5})$/i.exec(name || '');
+    return m ? '.' + m[1].toLowerCase() : '.png';
+  }
+
+  async function exportZip() {
+    if (!rows.length) { toast('还没有可导出的内容'); return; }
+    btnExport.disabled = true;
+    try {
+      // 原图按序号重命名，保证和 csv 里的行对得上
+      const nameMap = new Map();     // 原文件名 -> images/xx_原文件名
+      const files = [];
+      let seq = 0;
+      for (const item of picked) {
+        seq += 1;
+        const base = String(item.file.name || ('image' + seq));
+        const safe = base.replace(/[\\/:*?"<>|\s]+/g, '_');
+        const target = 'images/' + String(seq).padStart(2, '0') + '_' + safe;
+        nameMap.set(base, target);
+        const buf = await item.file.arrayBuffer();
+        files.push({ name: target, bytes: new Uint8Array(buf) });
+      }
+
+      const header = '序号,来源,图片文件,识别内容\r\n';
+      const lines = rows.map((r, i) => {
+        const img = r.source === '图片' ? (nameMap.get(r.first) || '') : '';
+        return [i + 1, r.source, img, r.text].map(csvCell).join(',');
+      }).join('\r\n');
+
+      const csv = '\ufeff' + header + lines + '\r\n';
+      files.push({ name: 'results.csv', bytes: new TextEncoder().encode(csv) });
+
+      saveBlob(makeZip(files), 'qrscan_' + Date.now() + '.zip');
+      toast('已导出 ' + picked.length + ' 张图片与 ' + rows.length + ' 条识别结果');
+    } catch (e) {
+      toast('导出失败：' + (e && e.message ? e.message : e), 3200);
+    } finally {
+      btnExport.disabled = rows.length === 0;
+    }
+  }
+
+  function saveBlob(blob, filename) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+
+  /* ============ 事件 ============ */
+  btnCamStart.addEventListener('click', startCamera);
+  btnCamStop.addEventListener('click', stopCamera);
+  btnCamSwitch.addEventListener('click', switchCamera);
+  $('btnCopy').addEventListener('click', copyResult);
+  btnExport.addEventListener('click', exportZip);
+  $('btnClear').addEventListener('click', () => {
+    rows.length = 0;
+    picked.forEach((p) => URL.revokeObjectURL(p.url));
+    picked.length = 0;
+    lastSeen.clear();
+    syncResult(false);
+    renderPicked();
+    toast('已清空');
+  });
+
+  drop.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    handleFiles(fileInput.files);
+    fileInput.value = '';
+  });
+  ['dragenter', 'dragover'].forEach((ev) => {
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('drag'); });
+  });
+  ['dragleave', 'drop'].forEach((ev) => {
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('drag'); });
+  });
+  drop.addEventListener('drop', (e) => {
+    if (e.dataTransfer && e.dataTransfer.files) handleFiles(e.dataTransfer.files);
+  });
+  document.addEventListener('paste', (e) => {
+    if (!e.clipboardData || !e.clipboardData.files || !e.clipboardData.files.length) return;
+    handleFiles(e.clipboardData.files);
+  });
+
+  /* ============ 使用说明弹窗 ============ */
+  const helpModal = $('helpModal');
+  const helpBtn = $('btnHelp');
+
+  function openHelp() {
+    if (!helpModal.hidden) return;
+    helpModal.hidden = false;
+    helpBtn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('modal-open');
+    helpModal.querySelector('.modal-card').focus({ preventScroll: true });
+  }
+
+  function closeHelp() {
+    if (helpModal.hidden) return;
+    helpModal.hidden = true;
+    helpBtn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('modal-open');
+    helpBtn.focus({ preventScroll: true });
+  }
+
+  helpBtn.addEventListener('click', openHelp);
+  $('helpClose').addEventListener('click', closeHelp);
+  helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
+  helpModal.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    $('helpClose').focus({ preventScroll: true });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !helpModal.hidden) closeHelp();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && scanning) stopCamera();
+  });
+  window.addEventListener('pagehide', () => { if (scanning) stopCamera(); });
+
+  /* ============ 初始化 ============ */
+  syncResult(false);
+  renderPicked();
+  initEngine().then(() => {
+    if (engine) {
+      camStatus.textContent = '解码器：' + engineLabel();
+    }
+    if (engine && !window.isSecureContext) {
+      camStatus.textContent = 'HTTP 下不可用';
+      btnCamStart.disabled = true;
+      insecureHint();
+    }
+  });
+})();
+</script>
+</body>
+</html>
