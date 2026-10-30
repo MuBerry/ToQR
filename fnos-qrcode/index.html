@@ -366,7 +366,11 @@
     width:40px;height:40px;flex:none;border:1px solid #eef0f2;border-radius:6px;background:#fff;
   }
   .history-main{min-width:0;flex:1}
-  .history-main .t{font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .history-main .t{
+    font-size:13px;color:var(--text-2);white-space:pre-wrap;word-break:break-word;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3;
+    overflow:hidden;max-height:4.6em;
+  }
   .history-main .m{font-size:12px;color:var(--text-5);margin-top:1px}
   .history-list .go{
     font-size:12.5px;color:var(--blue);opacity:0;flex:none;transition:opacity .12s;
@@ -539,6 +543,15 @@
                   stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           上传文件
+        </button>
+        <button class="btn btn-ghost" id="btnPaste" title="把剪贴板里的内容粘贴到输入框（光标处）">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="8.2" y="4.2" width="7.6" height="3.4" rx="1.1" stroke="#374151" stroke-width="1.7"/>
+            <path d="M15.8 5.9h1.6c.9 0 1.6.7 1.6 1.6v11.1c0 .9-.7 1.6-1.6 1.6H6.6c-.9 0-1.6-.7-1.6-1.6V7.5c0-.9.7-1.6 1.6-1.6h1.6"
+                  stroke="#374151" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M9 12.4h6M9 15.9h4" stroke="#374151" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+          粘贴
         </button>
         <button class="btn btn-ghost" id="btnClear">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -1037,7 +1050,11 @@
     }
 
     renderPreview(items, meta);
-    saveHistory(items);
+    // 记录「这次是用哪种方式生成的」和当时的完整原文，最近生成里要展示原文
+    saveHistory(items, {
+      raw: inputEl.value,
+      source: (forceLinks === true || mode === 'smart') && meta ? 'links' : 'raw'
+    });
   }
 
   /* ============ 下载 ============ */
@@ -1340,13 +1357,17 @@
     try { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr)); } catch (e) {}
   }
 
-  function saveHistory(items) {
+  function saveHistory(items, opts) {
     const arr = loadHistory();
+    const raw = String((opts && opts.raw) || '').trim();
     arr.unshift({
       ts: Date.now(),
       count: items.length,
-      sample: items.slice(0, 12),
-      preview: items[0]
+      sample: items.slice(0, 12),      // 载入时用；旧记录只有这个字段
+      preview: items[0],
+      // 全文最多留 4000 字，避免 8 条记录把 localStorage 撑爆
+      text: raw.slice(0, 4000),
+      source: (opts && opts.source) || 'raw'
     });
     saveHistoryTo(arr.slice(0, HISTORY_LIMIT));
     renderHistory();
@@ -1367,22 +1388,30 @@
     arr.forEach((rec, i) => {
       const li = document.createElement('li');
       li.dataset.i = i;
+      // 优先显示当时的完整原文；旧记录没有 text 字段，退回链接/内容摘要
+      const full = rec.text || rec.sample.slice(0, 3).join(' · ');
       li.innerHTML =
         '<img src="' + buildQrUrl(rec.preview, 120) + '" alt="">' +
         '<div class="history-main">' +
-          '<div class="t">' + escapeHtml(rec.sample.slice(0, 3).join(' · ')) +
-            (rec.count > 3 ? ' 等 ' + rec.count + ' 项' : '') + '</div>' +
-          '<div class="m">' + formatTime(rec.ts) + ' · 共 ' + rec.count + ' 个二维码</div>' +
+          '<div class="t" title="' + escapeHtml(full) + '">' + escapeHtml(full) + '</div>' +
+          '<div class="m">' + formatTime(rec.ts) + ' · 共 ' + rec.count + ' 个二维码' +
+            (rec.source === 'links' ? ' · 提取链接' : '') + '</div>' +
         '</div>' +
         '<span class="go">载入</span>';
       const thumb = li.querySelector('img');
       thumb.addEventListener('error', () => { thumb.style.visibility = 'hidden'; });
       li.addEventListener('click', () => {
-        inputEl.value = rec.sample.join('\n');
-        if (rec.count > rec.sample.length) {
-          toast('记录仅保留前 ' + rec.sample.length + ' 条，可重新编辑后生成');
+        // 有原文就恢复原文，并按当时的方式重新生成，结果才和记录一致
+        if (rec.text) {
+          inputEl.value = rec.text;
+          handleGenerate(rec.source === 'links');
+        } else {
+          inputEl.value = rec.sample.join('\n');
+          if (rec.count > rec.sample.length) {
+            toast('记录仅保留前 ' + rec.sample.length + ' 条，可重新编辑后生成');
+          }
+          handleGenerate();
         }
-        handleGenerate();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
       ul.appendChild(li);
@@ -1570,6 +1599,53 @@
   inputEl.addEventListener('input', () => {
     clearTimeout(hintTimer);
     hintTimer = setTimeout(updateLinkHint, 160);
+  });
+
+  // 粘贴：读剪贴板并插到光标处。Chrome 的 clipboard.readText 只在安全上下文
+  // （HTTPS / localhost）可用，HTTP 下会走 catch 给出 Ctrl+V 的提示。
+  function insertAtCursor(text) {
+    const start = inputEl.selectionStart;
+    const end = inputEl.selectionEnd;
+    const before = inputEl.value.slice(0, start);
+    const after = inputEl.value.slice(end);
+    // 上下文之间补一个换行，避免和已有内容粘成一行
+    let insert = text;
+    if (before && !/\n$/.test(before)) insert = '\n' + insert;
+    if (after && !/^\n/.test(after)) insert = insert + '\n';
+    inputEl.value = before + insert + after;
+    const pos = (before + insert).length;
+    inputEl.selectionStart = inputEl.selectionEnd = pos;
+    inputEl.focus();
+    importState = null;
+    importBar.hidden = true;
+    updateLinkHint();
+    toast('已粘贴 ' + text.length + ' 个字符', 1800);
+  }
+
+  $('btnPaste').addEventListener('click', async () => {
+    // HTTP 下 navigator.clipboard 整个不存在，先判断安全上下文，提示才准确
+    if (!window.isSecureContext) {
+      toast('浏览器只允许在 HTTPS 或 localhost 下读取剪贴板，请用 Ctrl+V 粘贴', 4200);
+      inputEl.focus();
+      return;
+    }
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      toast('当前浏览器不支持直接读剪贴板，请用 Ctrl+V 粘贴', 3600);
+      inputEl.focus();
+      return;
+    }
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        toast('剪贴板里没有文本内容');
+        inputEl.focus();
+        return;
+      }
+      insertAtCursor(text);
+    } catch (e) {
+      toast('读取剪贴板被拒绝，请允许剪贴板权限，或直接 Ctrl+V 粘贴', 4200);
+      inputEl.focus();
+    }
   });
 
   $('btnClear').addEventListener('click', () => {

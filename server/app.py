@@ -56,7 +56,7 @@ for _stream in (sys.stdout, sys.stderr):
 # 应用标识与默认端口允许被环境变量覆盖：fpk 包在 cmd/main 里设为
 # fnos-qrcode / 12990，使升级后的旧安装沿用原有会话 Cookie 与端口语义。
 APPNAME = os.environ.get('TOQR_APP_NAME') or 'toqr'
-APPVERSION = '1.2.8'
+APPVERSION = '1.2.9'
 PORT_MIN, PORT_MAX = 1024, 65535
 
 
