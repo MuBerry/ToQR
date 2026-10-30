@@ -90,6 +90,9 @@ sync_manifest_port() {
 mkdir -p "$TRIM_PKGVAR" "$TRIM_PKGETC" "$TRIM_PKGTMP" 2>/dev/null || fail "创建运行目录失败"
 log "运行目录就绪：$TRIM_PKGVAR"
 
+# 真正严格的一关：此时 app.tgz 已解包，$TRIM_APPDEST 里应该有服务端文件
+[ -f "$APP_PY" ] || fail "安装包缺少服务端文件 app/server/app.py，请用 build-fpk.sh 重新打包"
+
 # ---------- 2. 解析并校验安装向导参数 ----------
 PORT="${wizard_port:-12990}"
 PORT="$(printf '%s' "$PORT" | tr -d '[:space:]')"

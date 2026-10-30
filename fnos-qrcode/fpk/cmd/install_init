@@ -11,12 +11,27 @@ fail() {
 # 0. 包内必需文件
 #    app/server/app.py 由 build-fpk.sh 从仓库根 server/app.py 复制生成（不入库），
 #    若直接 fnpack build 而漏了同步步骤，这里就要拦住，别等装完启动才失败。
+#
+#    注意时机：install_init 跑在 app.tgz 解包**之前**，此时 $TRIM_APPDEST 还是空的，
+#    只看那里会一律误报（v1.2.9 曾因此装不上）。所以按顺序判断：
+#      1) 已经解包（本地调试 / install_callback 阶段）→ 直接看文件
+#      2) 还没解包 → 看包里的 app.tgz 清单
+#      3) 两者都判断不了（没有 app.tgz 也没有 tar）→ 放行，交给 install_callback 严格校验
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 PKG_DIR="$(dirname "$SELF_DIR")"
 : "${TRIM_APPDEST:=$PKG_DIR/app}"
-if [ ! -f "$TRIM_APPDEST/server/app.py" ]; then
-  fail "安装包缺少服务端文件 app/server/app.py，请用 build-fpk.sh 重新打包"
-fi
+
+has_server_file() {
+  local tgz="$PKG_DIR/app.tgz"
+  [ -f "$TRIM_APPDEST/server/app.py" ] && return 0
+  if [ -f "$tgz" ] && command -v tar >/dev/null 2>&1; then
+    tar -tzf "$tgz" 2>/dev/null | sed 's#^\./##' | grep -qx 'server/app.py'
+    return $?
+  fi
+  return 0   # 判断不了就不拦，install_callback 会严格检查
+}
+
+has_server_file || fail "安装包缺少服务端文件 app/server/app.py，请用 build-fpk.sh 重新打包"
 
 # 1. Python3
 found=""
