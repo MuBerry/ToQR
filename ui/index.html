@@ -1048,7 +1048,7 @@
     previewBody.appendChild(frag);
   }
 
-  function handleGenerate(forceLinks) {
+  function handleGenerate(forceLinks, opts) {
     if (!inputEl.value.trim()) {
       toast('请先在文本框中输入内容');
       inputEl.focus();
@@ -1081,6 +1081,8 @@
     }
 
     renderPreview(items, meta);
+    // 从「最近生成」里点进来的是回看，不该再往历史里塞一条（否则点一次多一条）
+    if (opts && opts.skipHistory) return;
     // 记录「这次是用哪种方式生成的」和当时的完整原文，最近生成里要展示原文
     saveHistory(items, {
       raw: inputEl.value,
@@ -1391,7 +1393,7 @@
   function saveHistory(items, opts) {
     const arr = loadHistory();
     const raw = String((opts && opts.raw) || '').trim();
-    arr.unshift({
+    const rec = {
       ts: Date.now(),
       count: items.length,
       sample: items.slice(0, 12),      // 载入时用；旧记录只有这个字段
@@ -1399,7 +1401,20 @@
       // 全文最多留 4000 字，避免 8 条记录把 localStorage 撑爆
       text: raw.slice(0, 4000),
       source: (opts && opts.source) || 'raw'
-    });
+    };
+
+    // 连续生成完全相同的内容（含重复点「生成二维码」）时只刷新时间，不新增一条
+    const head = arr[0];
+    if (head && (head.text || '') === rec.text
+        && (head.source || 'raw') === rec.source
+        && head.count === rec.count) {
+      arr[0] = Object.assign({}, head, { ts: rec.ts });
+      saveHistoryTo(arr);
+      renderHistory();
+      return;
+    }
+
+    arr.unshift(rec);
     saveHistoryTo(arr.slice(0, HISTORY_LIMIT));
     renderHistory();
   }
@@ -1435,13 +1450,13 @@
         // 有原文就恢复原文，并按当时的方式重新生成，结果才和记录一致
         if (rec.text) {
           inputEl.value = rec.text;
-          handleGenerate(rec.source === 'links');
+          handleGenerate(rec.source === 'links', { skipHistory: true });
         } else {
           inputEl.value = rec.sample.join('\n');
           if (rec.count > rec.sample.length) {
             toast('记录仅保留前 ' + rec.sample.length + ' 条，可重新编辑后生成');
           }
-          handleGenerate();
+          handleGenerate(false, { skipHistory: true });
         }
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
